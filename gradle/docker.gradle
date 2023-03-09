@@ -45,7 +45,9 @@ ext {
     dockerTimeout = project.hasProperty('dockerTimeout') ? dockerTimeout.toInteger() : 840
     dockerRetries = project.hasProperty('dockerRetries') ? dockerRetries.toInteger() : 3
     dockerBinary = project.hasProperty('dockerBinary') ? [dockerBinary] : ['docker']
-    dockerBuildArg = ['build']
+    dockerPlatform = project.hasProperty('projectPlatform') ? projectPlatform : 'linux/amd64'
+    dockerBuildArg = ['buildx', 'build']
+    dockerPlatformArg = ['--platform'] + [dockerPlatform]
     dockerDockerfileSuffix = ""
 }
 ext.dockerTaggedImageName = dockerRegistry + dockerImagePrefix + '/' + dockerImageName + ':' + dockerImageTag
@@ -73,8 +75,7 @@ task distDocker {
             println("Using default Dockerfile since '${dockerFile}' does not exist")
             dockerFile = dockerFileDir + "/Dockerfile"
         }
-
-        def cmd = dockerBinary + dockerBuildArg + ['-f', dockerFile] + ['-t', dockerImageName, project.buildscript.sourceFile.getParentFile().getAbsolutePath()]
+        def cmd = dockerBinary + dockerBuildArg + dockerPlatformArg + ['--load'] + ['-f', dockerFile] + ['-t', dockerImageName, project.buildscript.sourceFile.getParentFile().getAbsolutePath()]
         retry(cmd, dockerRetries, dockerTimeout)
         println("Building '${dockerImageName}' took ${TimeCategory.minus(new Date(), start)}")
     }
@@ -111,7 +112,7 @@ task distDockerCoverage() {
 }
 
 def prepareBuildArgs(List buildArgs) {
-    def result = ['build']
+    def result = ['build', 'buildx', '--platform', 'linux/amd64,linux/arm64']
     if(project.hasProperty('dockerBuildArgs')) {
         buildArgs.addAll(dockerBuildArgs)
     }

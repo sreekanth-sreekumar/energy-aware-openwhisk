@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-FROM scala
+FROM scala:latest
 
 ENV UID=1001 \
     NOT_ROOT_USER=owuser
