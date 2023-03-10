@@ -30,7 +30,7 @@ ENV SWAGGER_UI_DOWNLOAD_SHA256=3d7ef5ddc59e10f132fe99771498f0f1ba7a2cbfb9585f986
 # If this cannot be guaranteed, set `invoker_use_runc: false` in the ansible env.
 ENV DOCKER_VERSION=18.06.3-ce
 
-RUN apk add --update openssl
+RUN apt install openssl -y
 
 # Uncomment to fetch latest version of docker instead: RUN wget -qO- https://get.docker.com | sh
 # Install docker client

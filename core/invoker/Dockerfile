@@ -25,7 +25,7 @@ ENV UID=1001 \
 # Docker server version and the invoker docker version must be the same to enable runc usage.
 # If this cannot be guaranteed, set `invoker_use_runc: false` in the ansible env.
 
-RUN apk add --update openssl
+RUN apt install openssl -y
 
 # Uncomment to fetch latest version of docker instead: RUN wget -qO- https://get.docker.com | sh
 # Install docker client

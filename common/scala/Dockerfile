@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM alpine:latest
+FROM ubuntu:latest
 
 # Set environment variables
 ENV LANG en_US.UTF-8
@@ -22,13 +22,12 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # Install required packages
-RUN apk add --no-cache --update sed curl bash fontconfig ttf-dejavu
+RUN apt update && apt upgrade -y
 
-# Switch to the HTTPS endpoint for the apk repositories
-RUN sed -i 's/http\:\/\/dl-cdn.alpinelinux.org/https\:\/\/alpine.global.ssl.fastly.net/g' /etc/apk/repositories
+RUN apt install curl bash -y
 
 # Install the JDK using apk package manager
-RUN apk add --no-cache --update openjdk8
+RUN apt install openjdk-8-jdk -y
 
 # Install Scala 2.13.5 We have no choice but to do this since we can't find a compatible image for both amd64 and arm/v7
 ENV SCALA_VERSION=2.12.10
@@ -47,8 +46,6 @@ COPY copyJMXFiles.sh /
 # Make the scripts executable
 RUN chmod +x transformEnvironment.sh
 RUN chmod +x copyJMXFiles.sh
-
-
 
 # Create logs directory
 RUN mkdir /logs
