@@ -22,7 +22,7 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # Install required packages
-RUN apk add --no-cache --update sed curl bash fontconfig ttf-dejavu libstdc++
+RUN apk add --no-cache --update sed curl bash fontconfig ttf-dejavu
 
 # Switch to the HTTPS endpoint for the apk repositories
 RUN sed -i 's/http\:\/\/dl-cdn.alpinelinux.org/https\:\/\/alpine.global.ssl.fastly.net/g' /etc/apk/repositories
