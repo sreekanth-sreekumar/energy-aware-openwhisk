@@ -345,7 +345,7 @@
     pid_mode: "{{ pid_mode | default('') }}"
     privileged: "{{ privileged | default('no') }}"
     command:
-      /bin/sh -c
+      /usr/bin/bash -c
       "exec /init.sh {{ controller_index }}
       >> /logs/{{ controller_name }}_logs.log 2>&1"
 
@@ -361,4 +361,4 @@
   register: result
   until: result.status == 200
   retries: 12
-  delay: 5
+  delay: 10

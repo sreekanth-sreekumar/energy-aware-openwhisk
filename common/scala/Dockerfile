@@ -16,15 +16,18 @@
 #
 FROM ubuntu:latest
 
+# Install required packages
+RUN apt update && apt upgrade -y
+RUN apt install -y locales && \
+  localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+
 # Set environment variables
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
-# Install required packages
-RUN apt update && apt upgrade -y
-
-RUN apt install curl bash -y
+RUN apt install curl -y
+RUN find / -name bash -type f
 
 # Install the JDK using apk package manager
 RUN apt install openjdk-8-jdk -y
@@ -39,6 +42,9 @@ RUN curl -fsL "https://downloads.typesafe.com/scala/$SCALA_VERSION/scala-$SCALA_
   && rm -f /usr/local/bin/scala /usr/local/bin/scalac \
   && rm -rf /usr/share/man /tmp/*
 
+# Create logs directory
+RUN mkdir /logs
+
 # Copy the scripts into the container
 COPY transformEnvironment.sh /
 COPY copyJMXFiles.sh /
@@ -47,5 +53,3 @@ COPY copyJMXFiles.sh /
 RUN chmod +x transformEnvironment.sh
 RUN chmod +x copyJMXFiles.sh
 
-# Create logs directory
-RUN mkdir /logs

@@ -358,7 +358,7 @@ ansible all -i environments/mac -m ping
 ansible | FAILED! => {
     "changed": false,
     "failed": true,
-    "module_stderr": "/bin/sh: /usr/local/bin/python: No such file or directory\n",
+    "module_stderr": "/usr/bin/bash: /usr/local/bin/python: No such file or directory\n",
     "module_stdout": "",
     "msg": "MODULE FAILURE",
     "parsed": false

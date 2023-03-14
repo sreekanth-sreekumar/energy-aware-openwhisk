@@ -58,7 +58,7 @@ class ProcessRunnerTests extends FlatSpec with Matchers with WskActorSystem {
     val stderr = "Error"
 
     val future =
-      processRunner.run(Seq("/bin/sh", "-c", s"echo ${stdout}; echo ${stderr} 1>&2; exit ${exitStatus.statusValue}"))
+      processRunner.run(Seq("/usr/bin/bash", "-c", s"echo ${stdout}; echo ${stderr} 1>&2; exit ${exitStatus.statusValue}"))
 
     val exception = the[ProcessRunningException] thrownBy await(future)
     exception shouldBe ProcessUnsuccessfulException(exitStatus, stdout, stderr)
@@ -68,7 +68,7 @@ class ProcessRunnerTests extends FlatSpec with Matchers with WskActorSystem {
   it should "terminate an external command after the specified timeout is reached" in {
     val timeout = 100.milliseconds
     // Run "sleep" command for 1 second and make sure that stdout and stderr are dropped
-    val future = processRunner.run(Seq("/bin/sh", "-c", "sleep 1 1>/dev/null 2>/dev/null"), timeout)
+    val future = processRunner.run(Seq("/usr/bin/bash", "-c", "sleep 1 1>/dev/null 2>/dev/null"), timeout)
     val exception = the[ProcessTimeoutException] thrownBy await(future)
     exception shouldBe ProcessTimeoutException(timeout, ExitStatus(143), "", "")
     exception.getMessage should startWith(s"info: command was terminated, took longer than $timeout")

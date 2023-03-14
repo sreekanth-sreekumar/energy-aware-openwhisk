@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-FROM scala:latest
+FROM scala
 ARG ARCH
 ENV UID=1001 \
     NOT_ROOT_USER=owuser
@@ -52,11 +52,12 @@ RUN curl -sSL -o swagger-ui-v${SWAGGER_UI_VERSION}.tar.gz --no-verbose https://g
 
 # Copy app jars
 ADD build/distributions/controller.tar /
+RUN which bash
 
 COPY init.sh /
 RUN chmod +x init.sh
 
-RUN adduser -D -u ${UID} -h /home/${NOT_ROOT_USER} -s /bin/bash ${NOT_ROOT_USER}
+RUN adduser --disabled-password --gecos "" --uid ${UID} --home /home/${NOT_ROOT_USER} --shell /usr/bin/bash ${NOT_ROOT_USER}
 
 # It is possible to run as non root if you dont need invoker capabilities out of the controller today
 # When running it as a non-root user this has implications on the standard directory where runc stores its data.

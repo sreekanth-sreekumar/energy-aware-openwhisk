@@ -422,7 +422,7 @@ Now, the `source` function  copies the launcher as `exec__.py`, replacing the li
 We are almost done. We just need the startup script that instead of invoking python will invoke Ruby. So in the `build` function do this change:
 
 ```ruby
- write_file("%s/exec" % tgt_dir, """#!/bin/sh
+ write_file("%s/exec" % tgt_dir, """#!/usr/bin/bash
  cd "$(dirname $0)"
 -exec /usr/local/bin/python exec__.py
 +exec ruby exec__.rb
@@ -463,7 +463,7 @@ $ make debug
 
 Let's start with a couple of notes about this test environment.
 
-First, use `--entrypoint=/bin/sh` when starting the image to have a shell available at our image entrypoint. Generally, this is true by default; however, in some stripped down base images a shell may not be available.
+First, use `--entrypoint=/usr/bin/bash` when starting the image to have a shell available at our image entrypoint. Generally, this is true by default; however, in some stripped down base images a shell may not be available.
 
 Second, the `/proxy` folder is mounted in our local directory, so that we can edit the `bin/compile` and the `lib/launcher.rb` using our editor outside the Docker image
 

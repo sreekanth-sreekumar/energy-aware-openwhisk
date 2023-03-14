@@ -1,0 +1,50 @@
+[2023-03-14T16:11:21.839Z] [INFO] Slf4jLogger started
+[2023-03-14T16:11:21.865Z] [INFO] Starting remoting
+[2023-03-14T16:11:22.004Z] [INFO] Remoting started; listening on addresses :[akka.tcp://controller-actor-system@192.168.0.1:8000]
+[2023-03-14T16:11:22.006Z] [INFO] Remoting now listens on addresses: [akka.tcp://controller-actor-system@192.168.0.1:8000]
+[2023-03-14T16:11:22.035Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Starting up, Akka version [2.5.26] ...
+[2023-03-14T16:11:22.085Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Registered cluster JMX MBean [akka:type=Cluster]
+[2023-03-14T16:11:22.086Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Started up successfully
+[2023-03-14T16:11:22.128Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Node [akka.tcp://controller-actor-system@192.168.0.1:8000] is JOINING itself (with roles [dc-default]) and forming new cluster
+[2023-03-14T16:11:22.132Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - is the new leader among reachable nodes (more leaders may exist)
+[2023-03-14T16:11:22.147Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Leader is moving node [akka.tcp://controller-actor-system@192.168.0.1:8000] to [Up]
+[2023-03-14T16:11:22.636Z] [WARN] Failed to attach the instrumentation because the Kamon Bundle is not present on the classpath
+[2023-03-14T16:11:22.766Z] [INFO] Started the Kamon StatsD reporter
+[2023-03-14T16:11:23.126Z] [INFO] [#tid_sid_unknown] [Config] environment set value for limits.triggers.fires.perMinute
+[2023-03-14T16:11:23.126Z] [INFO] [#tid_sid_unknown] [Config] environment set value for limits.actions.sequence.maxLength
+[2023-03-14T16:11:23.127Z] [INFO] [#tid_sid_unknown] [Config] environment set value for limits.actions.invokes.concurrent
+[2023-03-14T16:11:23.127Z] [INFO] [#tid_sid_unknown] [Config] environment set value for limits.actions.invokes.perMinute
+[2023-03-14T16:11:23.127Z] [INFO] [#tid_sid_unknown] [Config] environment set value for runtimes.manifest
+[2023-03-14T16:11:23.127Z] [INFO] [#tid_sid_unknown] [Config] environment set value for kafka.hosts
+[2023-03-14T16:11:23.127Z] [INFO] [#tid_sid_unknown] [Config] environment set value for port
+[2023-03-14T16:11:24.127Z] [INFO] [#tid_sid_unknown] [KafkaMessagingProvider] created topic completed0
+[2023-03-14T16:11:24.342Z] [INFO] [#tid_sid_unknown] [KafkaMessagingProvider] created topic health
+[2023-03-14T16:11:24.507Z] [INFO] [#tid_sid_unknown] [KafkaMessagingProvider] created topic cacheInvalidation
+[2023-03-14T16:11:24.673Z] [INFO] [#tid_sid_unknown] [KafkaMessagingProvider] created topic events
+[2023-03-14T16:11:24.863Z] [INFO] [#tid_sid_controller] [Controller] starting controller instance 0 [marker:controller_startup0_counter:1770]
+[2023-03-14T16:11:25.724Z] [INFO] [#tid_sid_dispatcher] [MessageFeed] handler capacity = 128, pipeline fill at = 128, pipeline depth = 256
+[2023-03-14T16:11:25.984Z] [INFO] [#tid_sid_loadbalancer] [ShardingContainerPoolBalancerState] managedFraction = 0.9, blackboxFraction = 0.1
+[2023-03-14T16:11:26.071Z] [INFO] [#tid_sid_dispatcher] [MessageFeed] handler capacity = 128, pipeline fill at = 128, pipeline depth = 256
+[2023-03-14T16:11:26.712Z] [INFO] [#tid_sid_loadbalancer] [WhiskAction] [GET] serving from datastore: CacheKey(whisk.system/invokerHealthTestAction0) [marker:database_cacheMiss_counter:3619]
+[2023-03-14T16:11:26.796Z] [INFO] [#tid_sid_loadbalancer] [CouchDbRestStore] [GET] 'whisk_local_whisks' finding document: 'id: whisk.system/invokerHealthTestAction0' [marker:database_getDocument_start:3703]
+[2023-03-14T16:11:27.040Z] [INFO] [#tid_sid_loadbalancer] [CouchDbRestStore]  [marker:database_getDocument_finish:3947:243]
+[2023-03-14T16:11:27.042Z] [INFO] [#tid_sid_loadbalancer] [WhiskAction] invalidating CacheKey(whisk.system/invokerHealthTestAction0)
+[2023-03-14T16:11:27.111Z] [INFO] [#tid_sid_loadbalancer] [WhiskAction] write initiated on new cache entry
+[2023-03-14T16:11:27.116Z] [INFO] [#tid_sid_loadbalancer] [CouchDbRestStore] [PUT] 'whisk_local_whisks' saving document: 'id: whisk.system/invokerHealthTestAction0, rev: null' [marker:database_saveDocument_start:4024]
+[2023-03-14T16:11:27.144Z] [INFO] [#tid_sid_loadbalancer] [InvokerPool] test action for invoker health now exists
+[2023-03-14T16:11:27.184Z] [INFO] [#tid_sid_loadbalancer] [CouchDbRestStore]  [marker:database_saveDocument_finish:4092:67]
+[2023-03-14T16:11:27.192Z] [INFO] [#tid_sid_loadbalancer] [WhiskAction] write all done, caching CacheKey(whisk.system/invokerHealthTestAction0) Cached
+[2023-03-14T16:11:27.288Z] [INFO] [#tid_sid_controller] [Controller] loadbalancer initialized: ShardingContainerPoolBalancer
+[2023-03-14T16:11:27.292Z] [INFO] [#tid_sid_dispatcher] [MessageFeed] handler capacity = 128, pipeline fill at = 128, pipeline depth = 256
+[2023-03-14T16:11:27.396Z] [INFO] [#tid_sid_controller] [KindRestrictor] all kinds are allowed, the white-list is not specified
+[2023-03-14T16:11:27.908Z] [INFO] [#tid_sid_controller] [ActionsApi] actionSequenceLimit '50'
+[2023-03-14T16:51:52.510Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Marked address [akka.tcp://controller-actor-system@192.168.0.1:8000] as [Leaving]
+[2023-03-14T16:51:53.120Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Leader is moving node [akka.tcp://controller-actor-system@192.168.0.1:8000] to [Exiting]
+[2023-03-14T16:51:53.123Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Exiting completed
+[2023-03-14T16:51:53.125Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Shutting down...
+[2023-03-14T16:51:53.126Z] [INFO] Cluster Node [akka.tcp://controller-actor-system@192.168.0.1:8000] - Successfully shut down
+[2023-03-14T16:51:53.138Z] [INFO] [#tid_sid_unknown] [Controller] Shutting down Kamon with coordinated shutdown
+[2023-03-14T16:51:53.142Z] [INFO] Shutting down remote daemon.
+[2023-03-14T16:51:53.144Z] [INFO] Remote daemon shut down; proceeding with flushing remote transports.
+[2023-03-14T16:51:53.172Z] [INFO] Remoting shut down
+[2023-03-14T16:51:53.173Z] [INFO] Remoting shut down.
