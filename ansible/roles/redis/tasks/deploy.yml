@@ -36,7 +36,7 @@
     env:
       TZ: "{{ docker.timezone }}"
     command:
-      /usr/bin/bash -c
+      /bin/sh -c
       "docker-entrypoint.sh --requirepass {{ redis.password }}"
 
 - name: wait until redis is up and running

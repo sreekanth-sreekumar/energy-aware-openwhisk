@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM scala
+FROM ssreekmr/scala
 ARG ARCH
 ARG OPENWHISK_JAR
 ENV DOCKER_VERSION=18.06.3-ce

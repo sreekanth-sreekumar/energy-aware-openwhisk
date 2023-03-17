@@ -26,7 +26,7 @@ include 'core:monitoring:user-events'
 include 'tests'
 include 'tests:performance:gatling_tests'
 
-include 'tools:actionProxy'
+//include 'tools:actionProxy'
 include 'tools:ow-utils'
 include 'tools:dev'
 

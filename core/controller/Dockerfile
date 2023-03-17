@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-FROM scala
+FROM ssreekmr/scala
 ARG ARCH
 ENV UID=1001 \
     NOT_ROOT_USER=owuser
@@ -52,7 +52,6 @@ RUN curl -sSL -o swagger-ui-v${SWAGGER_UI_VERSION}.tar.gz --no-verbose https://g
 
 # Copy app jars
 ADD build/distributions/controller.tar /
-RUN which bash
 
 COPY init.sh /
 RUN chmod +x init.sh

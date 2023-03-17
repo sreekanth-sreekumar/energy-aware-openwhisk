@@ -51,6 +51,7 @@ ext {
     dockerDockerfileSuffix = ""
 }
 ext.dockerTaggedImageName = dockerRegistry + dockerImagePrefix + '/' + dockerImageName + ':' + dockerImageTag
+ext.dockerRegisteredImageName = dockerRegistry + dockerImageName + ':' + dockerImageTag
 
 if(project.hasProperty('dockerHost')) {
     dockerBinary += ['--host', project.dockerHost]
@@ -75,7 +76,8 @@ task distDocker {
             println("Using default Dockerfile since '${dockerFile}' does not exist")
             dockerFile = dockerFileDir + "/Dockerfile"
         }
-        def cmd = dockerBinary + dockerBuildArg + dockerPlatformArg + ['--load'] + ['-f', dockerFile] + ['-t', dockerImageName, project.buildscript.sourceFile.getParentFile().getAbsolutePath()]
+        def cmd = dockerBinary + dockerBuildArg + dockerPlatformArg + ['--push'] + ['-f', dockerFile] +
+                ['-t', dockerRegisteredImageName, project.buildscript.sourceFile.getParentFile().getAbsolutePath()]
         retry(cmd, dockerRetries, dockerTimeout)
         println("Building '${dockerImageName}' took ${TimeCategory.minus(new Date(), start)}")
     }
@@ -122,32 +124,32 @@ def prepareBuildArgs(List buildArgs) {
     result
 }
 
-task tagImage {
-    doLast {
-        def versionString = (dockerBinary + ['-v']).execute().text
-        def matched = (versionString =~ /^(\S+) version (\d+)\.(\d+)\.(\d+)/)
+//task tagImage {
+//    doLast {
+//        def versionString = (dockerBinary + ['-v']).execute().text
+//        def matched = (versionString =~ /^(\S+) version (\d+)\.(\d+)\.(\d+)/)
+//
+//        def runner = matched[0][1]
+//        def major = matched[0][2] as int
+//        def minor = matched[0][3] as int
+//
+//        def dockerCmd = ['tag']
+//        if(runner == 'Docker' && major == 1 && minor < 12) {
+//            dockerCmd += ['-f']
+//        }
+//        retry(dockerBinary + dockerCmd + [dockerImageName, dockerTaggedImageName], dockerRetries, dockerTimeout)
+//    }
+//}
 
-        def runner = matched[0][1]
-        def major = matched[0][2] as int
-        def minor = matched[0][3] as int
-
-        def dockerCmd = ['tag']
-        if(runner == 'Docker' && major == 1 && minor < 12) {
-            dockerCmd += ['-f']
-        }
-        retry(dockerBinary + dockerCmd + [dockerImageName, dockerTaggedImageName], dockerRetries, dockerTimeout)
-    }
-}
-
-task pushImage {
-    doLast {
-        def cmd = dockerBinary + ['push', dockerTaggedImageName]
-        retry(cmd, dockerRetries, dockerTimeout)
-    }
-}
-pushImage.dependsOn tagImage
-pushImage.onlyIf { dockerRegistry != '' }
-distDocker.finalizedBy pushImage
+//task pushImage {
+//    doLast {
+//        def cmd = dockerBinary + ['push', dockerTaggedImageName]
+//        retry(cmd, dockerRetries, dockerTimeout)
+//    }
+//}
+//pushImage.dependsOn tagImage
+//pushImage.onlyIf { dockerRegistry != '' }
+//distDocker.finalizedBy pushImage
 
 def retry(cmd, retries, timeout) {
     println("${new Date()}: Executing '${cmd.join(" ")}'")

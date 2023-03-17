@@ -229,8 +229,8 @@ nginx:
     become: "{{ nginx_dir_become | default(false) }}"
   version: "{{ nginx_version | default('1.19') }}"
   port:
-    http: 80
-    https: 443
+    http: 81
+    https: 444
   ssl:
     path: "{{ nginx_ssl_path | default(playbook_dir +'/roles/nginx/files') }}"
     cert: "{{ nginx_ssl_server_cert | default('openwhisk-server-cert.pem') }}"

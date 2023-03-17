@@ -98,7 +98,7 @@
     hostname: "nginx"
     volumes: "{{ volumes }}"
     ports:
-      - "{{ nginx.port.http }}:80"
-      - "{{ nginx.port.https }}:443"
+      - "{{ nginx.port.http }}:81"
+      - "{{ nginx.port.https }}:444"
     env:
       TZ: "{{ docker.timezone }}"

@@ -24,8 +24,8 @@ plugins {
 }
 
 ext.dockerImageName = 'invoker'
-ext.dockerBuildArgs = ["ARCH=x86_64"]
-// ext.dockerBuildArgs = ["ARCH=armhf"]
+//ext.dockerBuildArgs = ["ARCH=x86_64"]
+ext.dockerBuildArgs = ["ARCH=armhf"]
 apply from: '../../gradle/docker.gradle'
 distDocker.dependsOn ':common:scala:distDocker', 'distTar'
 
