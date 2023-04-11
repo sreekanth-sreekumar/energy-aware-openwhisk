@@ -206,6 +206,7 @@ object ConfigKeys {
   val kafkaTopics = s"$kafka.topics"
 
   val memory = "whisk.memory"
+  val power = "whisk.power"
   val timeLimit = "whisk.time-limit"
   val logLimit = "whisk.log-limit"
   val concurrencyLimit = "whisk.concurrency-limit"
@@ -231,6 +232,8 @@ object ConfigKeys {
   val runtimesRegistry = s"$containerFactory.runtimes-registry"
   val userImagesRegistry = s"$containerFactory.user-images-registry"
   val containerPool = "whisk.container-pool"
+  val solarData = "whisk.solar-data"
+  val solarInitialConfig = "whisk.solar-initial-config"
   val blacklist = "whisk.blacklist"
 
   val kubernetes = "whisk.kubernetes"

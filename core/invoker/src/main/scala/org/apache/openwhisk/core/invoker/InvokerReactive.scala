@@ -19,10 +19,11 @@ package org.apache.openwhisk.core.invoker
 
 import java.nio.charset.StandardCharsets
 import java.time.Instant
-
 import akka.Done
 import akka.actor.{ActorRefFactory, ActorSystem, CoordinatedShutdown, Props}
 import akka.event.Logging.InfoLevel
+import akka.pattern.ask
+import akka.remote.transport.ActorTransportAdapter.AskTimeout
 import akka.stream.ActorMaterializer
 import org.apache.openwhisk.common._
 import org.apache.openwhisk.common.tracing.WhiskTracerProvider
@@ -43,6 +44,11 @@ import spray.json._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
+
+import javax.management._
+import java.lang.management.ManagementFactory
+import java.lang.management.OperatingSystemMXBean
+
 
 object InvokerReactive extends InvokerProvider {
 
@@ -72,6 +78,8 @@ class InvokerReactive(
 
   private val logsProvider = SpiLoader.get[LogStoreProvider].instance(actorSystem)
   logging.info(this, s"LogStoreProvider: ${logsProvider.getClass}")
+
+  private val energyProfile = actorSystem.actorOf(InvokerEnergyProfile.props(instance)(actorSystem, logging))
 
   /**
    * Factory used by the ContainerProxy to physically create a new container.
@@ -292,11 +300,20 @@ class InvokerReactive(
       })
   }
 
-  private val healthProducer = msgProvider.getProducer(config)
+  private val energyProducer = msgProvider.getProducer(config)
   Scheduler.scheduleWaitAtMost(1.seconds)(() => {
-    healthProducer.send("health", PingMessage(instance)).andThen {
-      case Failure(t) => logging.error(this, s"failed to ping the controller: $t")
+    val osBean: OperatingSystemMXBean = ManagementFactory.getOperatingSystemMXBean()
+    val availableProcessors: Int = osBean.getAvailableProcessors()
+    val systemLoadAverage: Double = osBean.getSystemLoadAverage()
+    val cpuLoadPercentage: Double = systemLoadAverage / availableProcessors * 100
+    val currentEnergy: Future[Double] = (energyProfile ? UpdateEnergyProfile(cpuLoadPercentage)).mapTo[Double]
+    currentEnergy.andThen {
+      case Success(value) => {
+        energyProducer.send("energyProfile", EnergyProfileMessage(instance, value)).andThen {
+          case Failure(t) => logging.error(this, s"failed to send energy to the controller: $t")
+        }
+      }
+      case Failure(t) => logging.error(this, s"failed to retrieve energy profile information: $t")
     }
   })
-
 }

@@ -34,13 +34,23 @@ import scala.concurrent.duration._
  * @param id a unique instance identifier for the invoker
  * @param status it status (healthy, unhealthy, offline)
  */
-class InvokerHealth(val id: InvokerInstanceId, val status: InvokerState) {
-  override def equals(obj: scala.Any): Boolean = obj match {
-    case that: InvokerHealth => that.id == this.id && that.status == this.status
-    case _                   => false
-  }
+//class InvokerHealth(val id: InvokerInstanceId, val status: InvokerState) {
+//  override def equals(obj: scala.Any): Boolean = obj match {
+//    case that: InvokerHealth => that.id == this.id && that.status == this.status
+//    case _                   => false
+//  }
+//
+//  override def toString = s"InvokerHealth($id, $status)"
+//}
 
-  override def toString = s"InvokerHealth($id, $status)"
+class InvokerEnergyHealth(val id: InvokerInstanceId, val totalEnergy: Double, val status: InvokerState) {
+  override def equals(obj: scala.Any): Boolean = obj match {
+    case that: InvokerEnergyHealth => that.id == this.id &&
+      that.status == this.status &&
+      that.totalEnergy == this.totalEnergy
+    case _ => false
+  }
+  override def toString = s"InvokerEnergyHealth($id, $totalEnergy, $status)"
 }
 
 trait LoadBalancer {
@@ -65,7 +75,7 @@ trait LoadBalancer {
    *
    * @return a Future[IndexedSeq[InvokerHealth]] representing the health of the pools managed by the loadbalancer.
    */
-  def invokerHealth(): Future[IndexedSeq[InvokerHealth]]
+  def invokerHealth(): Future[IndexedSeq[InvokerEnergyHealth]]
 
   /** Gets the number of in-flight activations for a specific user. */
   def activeActivationsFor(namespace: UUID): Future[Int]

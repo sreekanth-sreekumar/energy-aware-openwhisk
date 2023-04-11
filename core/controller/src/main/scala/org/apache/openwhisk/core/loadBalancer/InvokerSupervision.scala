@@ -59,6 +59,8 @@ object InvokerState {
   case object Healthy extends Usable { val asString = "up" }
   // Pings are arriving fine, the invoker returns system errors though
   case object Unhealthy extends Unusable { val asString = "unhealthy" }
+  // Pings are arriving fine, but the invoker doesn't have energy to execute the function
+  case object Noenergy extends Unusable { val asString = "noenergy" }
   // Pings are arriving fine, the invoker does not respond with active-acks in the expected time though
   case object Unresponsive extends Unusable { val asString = "unresponsive" }
   // Pings are not arriving for this invoker
@@ -81,7 +83,7 @@ case class ActivationRequest(msg: ActivationMessage, invoker: InvokerInstanceId)
 case class InvocationFinishedMessage(invokerInstance: InvokerInstanceId, result: InvocationFinishedResult)
 
 // Sent to a monitor if the state changed
-case class CurrentInvokerPoolState(newState: IndexedSeq[InvokerHealth])
+case class CurrentInvokerPoolState(newState: IndexedSeq[InvokerEnergyHealth])
 
 // Data stored in the Invoker
 final case class InvokerInfo(buffer: RingBuffer[InvocationFinishedResult])
@@ -99,7 +101,7 @@ final case class InvokerInfo(buffer: RingBuffer[InvocationFinishedResult])
  */
 class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef,
                   sendActivationToInvoker: (ActivationMessage, InvokerInstanceId) => Future[RecordMetadata],
-                  pingConsumer: MessageConsumer,
+                  energyConsumer: MessageConsumer,
                   monitor: Option[ActorRef])
     extends Actor {
 
@@ -114,19 +116,22 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
   // from leaking the state for external mutation
   var instanceToRef = immutable.Map.empty[Int, ActorRef]
   var refToInstance = immutable.Map.empty[ActorRef, InvokerInstanceId]
-  var status = IndexedSeq[InvokerHealth]()
+  var status = IndexedSeq[InvokerEnergyHealth]()
 
   def receive: Receive = {
-    case p: PingMessage =>
-      val invoker = instanceToRef.getOrElse(p.instance.toInt, registerInvoker(p.instance))
+    case p: EnergyProfileMessage =>
+      val invoker = instanceToRef.getOrElse(p.instance.toInt, registerInvoker(p.instance, p.currEnergy))
       instanceToRef = instanceToRef.updated(p.instance.toInt, invoker)
 
       // For the case when the invoker was restarted and got a new displayed name
       val oldHealth = status(p.instance.toInt)
       if (oldHealth.id != p.instance) {
-        status = status.updated(p.instance.toInt, new InvokerHealth(p.instance, oldHealth.status))
+        status = status.updated(p.instance.toInt, new InvokerEnergyHealth(p.instance, p.currEnergy, oldHealth.status))
         refToInstance = refToInstance.updated(invoker, p.instance)
       }
+
+      // Updating status to keep fresh status of energy
+      status = status.updated(p.instance.toInt, new InvokerEnergyHealth(p.instance, p.currEnergy, oldHealth.status))
 
       invoker.forward(p)
 
@@ -138,13 +143,15 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
 
     case CurrentState(invoker, currentState: InvokerState) =>
       refToInstance.get(invoker).foreach { instance =>
-        status = status.updated(instance.toInt, new InvokerHealth(instance, currentState))
+        val oldHealth = status(instance.toInt)
+        status = status.updated(instance.toInt, new InvokerEnergyHealth(instance, oldHealth.totalEnergy, currentState))
       }
       logStatus()
 
     case Transition(invoker, oldState: InvokerState, newState: InvokerState) =>
       refToInstance.get(invoker).foreach { instance =>
-        status = status.updated(instance.toInt, new InvokerHealth(instance, newState))
+        val oldHealth = status(instance.toInt)
+        status = status.updated(instance.toInt, new InvokerEnergyHealth(instance, oldHealth.totalEnergy, newState))
       }
       logStatus()
 
@@ -159,27 +166,27 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
   }
 
   /** Receive Ping messages from invokers. */
-  val pingPollDuration: FiniteDuration = 1.second
-  val invokerPingFeed: ActorRef = context.system.actorOf(Props {
+  val energyProfileDuration: FiniteDuration = 1.second
+  val invokerEnergyFeed: ActorRef = context.system.actorOf(Props {
     new MessageFeed(
-      "ping",
+      "energyProfile",
       logging,
-      pingConsumer,
-      pingConsumer.maxPeek,
-      pingPollDuration,
-      processInvokerPing,
+      energyConsumer,
+      energyConsumer.maxPeek,
+      energyProfileDuration,
+      processInvokerEnergyProfile,
       logHandoff = false)
   })
 
-  def processInvokerPing(bytes: Array[Byte]): Future[Unit] = Future {
+  def processInvokerEnergyProfile(bytes: Array[Byte]): Future[Unit] = Future {
     val raw = new String(bytes, StandardCharsets.UTF_8)
-    PingMessage.parse(raw) match {
-      case Success(p: PingMessage) =>
+    EnergyProfileMessage.parse(raw) match {
+      case Success(p: EnergyProfileMessage) =>
         self ! p
-        invokerPingFeed ! MessageFeed.Processed
+        invokerEnergyFeed ! MessageFeed.Processed
 
       case Failure(t) =>
-        invokerPingFeed ! MessageFeed.Processed
+        invokerEnergyFeed ! MessageFeed.Processed
         logging.error(this, s"failed processing message: $raw with $t")
     }
   }
@@ -188,7 +195,7 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
   def padToIndexed[A](list: IndexedSeq[A], n: Int, f: (Int) => A): IndexedSeq[A] = list ++ (list.size until n).map(f)
 
   // Register a new invoker
-  def registerInvoker(instanceId: InvokerInstanceId): ActorRef = {
+  def registerInvoker(instanceId: InvokerInstanceId, currEnergy: Double): ActorRef = {
     logging.info(this, s"registered a new invoker: invoker${instanceId.toInt}")(TransactionId.invokerHealth)
 
     // Grow the underlying status sequence to the size needed to contain the incoming ping. Dummy values are created
@@ -196,8 +203,8 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
     status = padToIndexed(
       status,
       instanceId.toInt + 1,
-      i => new InvokerHealth(InvokerInstanceId(i, userMemory = instanceId.userMemory), Offline))
-    status = status.updated(instanceId.toInt, new InvokerHealth(instanceId, Offline))
+      i => new InvokerEnergyHealth(InvokerInstanceId(i, userMemory = instanceId.userMemory), currEnergy, Offline))
+    status = status.updated(instanceId.toInt, new InvokerEnergyHealth(instanceId, currEnergy, Offline))
 
     val ref = childFactory(context, instanceId)
     ref ! SubscribeTransitionCallBack(self) // register for state change events
@@ -253,9 +260,9 @@ object InvokerPool {
 
   def props(f: (ActorRefFactory, InvokerInstanceId) => ActorRef,
             p: (ActivationMessage, InvokerInstanceId) => Future[RecordMetadata],
-            pc: MessageConsumer,
+            ec: MessageConsumer,
             m: Option[ActorRef] = None): Props = {
-    Props(new InvokerPool(f, p, pc, m))
+    Props(new InvokerPool(f, p, ec, m))
   }
 
   /** A stub identity for invoking the test action. This does not need to be a valid identity. */
@@ -305,12 +312,16 @@ class InvokerActor(invokerInstance: InvokerInstanceId, controllerInstance: Contr
 
   /** An Offline invoker represents an existing but broken invoker. This means, that it does not send pings anymore. */
   when(Offline) {
-    case Event(_: PingMessage, _) => goto(Unhealthy)
+    case Event(_: EnergyProfileMessage, _) => goto(Unhealthy)
   }
 
   // To be used for all states that should send test actions to reverify the invoker
   val healthPingingState: StateFunction = {
-    case Event(_: PingMessage, _) => stay
+    case Event(e: EnergyProfileMessage, _) =>
+      if(e.currEnergy <= PowerLimit.STD_POWER) {
+        goto(Noenergy)
+      }
+      else { stay }
     case Event(StateTimeout, _)   => goto(Offline)
     case Event(Tick, _) =>
       invokeTestAction()
@@ -323,13 +334,31 @@ class InvokerActor(invokerInstance: InvokerInstanceId, controllerInstance: Contr
   /** An Unresponsive invoker represents an invoker that is not responding with active acks in a timely manner */
   when(Unresponsive, stateTimeout = healthyTimeout)(healthPingingState)
 
+  /** A Noenergy invoker represents an invoker that is responding, but doesn't have energy to execute actions */
+  when(Noenergy, stateTimeout = healthyTimeout) {
+    case Event(e: EnergyProfileMessage, _) =>
+      if (e.currEnergy >= PowerLimit.STD_POWER) {
+        goto(Healthy)
+      }
+      else {
+        stay
+      }
+    case Event(StateTimeout, _) => goto(Offline)
+  }
+
   /**
    * A Healthy invoker is characterized by continuously getting pings. It will go offline if that state is not confirmed
    * for 20 seconds.
    */
   when(Healthy, stateTimeout = healthyTimeout) {
-    case Event(_: PingMessage, _) => stay
-    case Event(StateTimeout, _)   => goto(Offline)
+    case Event(e: EnergyProfileMessage, _) =>
+      if (e.currEnergy <= PowerLimit.STD_POWER) {
+        goto(Noenergy)
+      }
+      else {
+        stay
+      }
+    case Event(StateTimeout, _) => goto(Offline)
   }
 
   /** Handle the completion of an Activation in every state. */

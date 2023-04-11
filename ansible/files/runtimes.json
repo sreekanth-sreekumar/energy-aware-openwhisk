@@ -15,11 +15,11 @@
     "runtimes": {
         "nodejs": [
             {
-                "kind": "nodejs:10",
+                "kind": "nodejs:14",
                 "default": true,
                 "image": {
                     "prefix": "ssreekmr",
-                    "name": "action-nodejs-v10",
+                    "name": "action-nodejs-v14",
                     "tag": "latest"
                 },
                 "deprecated": false,
@@ -40,22 +40,6 @@
                         }
                     }
                 ]
-            }
-        ],
-        "python": [
-            {
-                "kind": "python:3",
-                "default": true,
-                "image": {
-                    "prefix": "ssreekmr",
-                    "name": "python3aiaction",
-                    "tag": "latest"
-                },
-                "deprecated": false,
-                "attached": {
-                    "attachmentName": "codefile",
-                    "attachmentType": "text/plain"
-                }
             }
         ]
     },

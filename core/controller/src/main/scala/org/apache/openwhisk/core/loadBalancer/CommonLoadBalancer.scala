@@ -52,8 +52,8 @@ abstract class CommonLoadBalancer(config: WhiskConfig,
 
   protected implicit val executionContext: ExecutionContext = actorSystem.dispatcher
 
-  val lbConfig: ShardingContainerPoolBalancerConfig =
-    loadConfigOrThrow[ShardingContainerPoolBalancerConfig](ConfigKeys.loadbalancer)
+  val lbConfig: EnergyAwarePoolBalancerConfig =
+    loadConfigOrThrow[EnergyAwarePoolBalancerConfig](ConfigKeys.loadbalancer)
   protected val invokerPool: ActorRef
 
   /** State related to invocations and throttling */

@@ -2,3 +2,4 @@
 !init.sh
 !build/distributions
 !build/tmp/docker-coverage
+!data/solar_data.csv

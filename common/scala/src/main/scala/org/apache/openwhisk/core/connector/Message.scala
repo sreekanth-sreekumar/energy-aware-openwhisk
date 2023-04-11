@@ -259,6 +259,15 @@ object AcknowledegmentMessage extends DefaultJsonProtocol {
   }
 }
 
+case class EnergyProfileMessage(instance: InvokerInstanceId, currEnergy: Double) extends Message {
+  override def serialize: String = EnergyProfileMessage.serdes.write(this).compactPrint
+}
+
+object EnergyProfileMessage extends DefaultJsonProtocol {
+  def parse(msg: String) = Try(serdes.read(msg.parseJson))
+  implicit val serdes = jsonFormat(EnergyProfileMessage.apply _, "name", "availEnergy")
+}
+
 case class PingMessage(instance: InvokerInstanceId) extends Message {
   override def serialize = PingMessage.serdes.write(this).compactPrint
 }
