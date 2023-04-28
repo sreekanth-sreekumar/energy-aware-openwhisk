@@ -51,7 +51,7 @@ class LeanBalancer(config: WhiskConfig,
     extends CommonLoadBalancer(config, feedFactory, controllerInstance) {
 
   /** Loadbalancer interface methods */
-  override def invokerHealth(): Future[IndexedSeq[InvokerHealth]] = Future.successful(IndexedSeq.empty[InvokerHealth])
+  override def invokerHealth(): Future[IndexedSeq[InvokerEnergyHealth]] = Future.successful(IndexedSeq.empty[InvokerEnergyHealth])
   override def clusterSize: Int = 1
 
   val poolConfig: ContainerPoolConfig = loadConfigOrThrow[ContainerPoolConfig](ConfigKeys.containerPool)
@@ -59,11 +59,12 @@ class LeanBalancer(config: WhiskConfig,
   val invokerName = InvokerInstanceId(0, None, None, poolConfig.userMemory)
 
   /** 1. Publish a message to the loadbalancer */
-  override def publish(action: ExecutableWhiskActionMetaData, msg: ActivationMessage)(
+  override def publish(action: ExecutableWhiskActionMetaData, msg: ActivationMessage, fromOutside: Boolean = true)(
     implicit transid: TransactionId): Future[Future[Either[ActivationId, WhiskActivation]]] = {
 
     /** 2. Update local state with the activation to be executed scheduled. */
-    val activationResult = setupActivation(msg, action, invokerName)
+    val activationResult = setupActivation(ActivationRecord(msg, action.limits.memory.megabytes, action.limits.timeout.duration,
+      action.limits.concurrency.maxConcurrent, action.fullyQualifiedName(true), action.exec.pull), invokerName)
     sendActivationToInvoker(messageProducer, msg, invokerName).map(_ => activationResult)
   }
 

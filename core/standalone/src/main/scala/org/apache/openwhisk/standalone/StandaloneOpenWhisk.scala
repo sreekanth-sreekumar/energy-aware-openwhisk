@@ -257,9 +257,9 @@ object StandaloneOpenWhisk extends SLF4JLogging {
     new ServerStartupCheck(conf.serverUrl, "OpenWhisk").waitForServerToStart()
 
     if (canInstallUserAndActions(conf)) {
-      if (conf.apiGw()) {
-        installRouteMgmt(conf, workDir, apiGwApiPort)
-      }
+//      if (conf.apiGw()) {
+//        installRouteMgmt(conf, workDir, apiGwApiPort)
+//      }
       pgLauncher.foreach(_.install())
     }
   }

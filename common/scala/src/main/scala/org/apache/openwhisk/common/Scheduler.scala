@@ -34,6 +34,10 @@ import akka.actor.Props
  */
 object Scheduler {
   case object WorkOnceNow
+
+  case object Pause
+
+  case object Resume
   private case object ScheduledWork
 
   /**
@@ -50,6 +54,8 @@ object Scheduler {
                        closure: () => Future[Any])(implicit logging: Logging, transid: TransactionId)
       extends Actor {
     implicit val ec = context.dispatcher
+
+    var isPaused: Boolean = false
 
     var lastSchedule: Option[Cancellable] = None
 

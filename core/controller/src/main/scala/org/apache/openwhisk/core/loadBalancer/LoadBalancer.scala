@@ -24,7 +24,9 @@ import org.apache.openwhisk.common.{Logging, TransactionId}
 import org.apache.openwhisk.core.WhiskConfig
 import org.apache.openwhisk.core.connector._
 import org.apache.openwhisk.core.entity._
+import org.apache.openwhisk.core.invoker.EnergyProfile
 import org.apache.openwhisk.spi.Spi
+
 import scala.concurrent.duration._
 
 /**
@@ -43,14 +45,15 @@ import scala.concurrent.duration._
 //  override def toString = s"InvokerHealth($id, $status)"
 //}
 
-class InvokerEnergyHealth(val id: InvokerInstanceId, val totalEnergy: Double, val status: InvokerState) {
+class InvokerEnergyHealth(val id: InvokerInstanceId, val energyProfile: EnergyProfile,
+                          val status: InvokerState) {
   override def equals(obj: scala.Any): Boolean = obj match {
     case that: InvokerEnergyHealth => that.id == this.id &&
       that.status == this.status &&
-      that.totalEnergy == this.totalEnergy
+      that.energyProfile == this.energyProfile
     case _ => false
   }
-  override def toString = s"InvokerEnergyHealth($id, $totalEnergy, $status)"
+  override def toString = s"InvokerEnergyHealth($id, $energyProfile, $status)"
 }
 
 trait LoadBalancer {
@@ -67,7 +70,7 @@ trait LoadBalancer {
    *         The future is guaranteed to complete within the declared action time limit
    *         plus a grace period (see activeAckTimeoutGrace).
    */
-  def publish(action: ExecutableWhiskActionMetaData, msg: ActivationMessage)(
+  def publish(action: ExecutableWhiskActionMetaData, msg: ActivationMessage, fromOutside: Boolean = true)(
     implicit transid: TransactionId): Future[Future[Either[ActivationId, WhiskActivation]]]
 
   /**

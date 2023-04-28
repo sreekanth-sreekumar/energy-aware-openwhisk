@@ -264,7 +264,7 @@ object Controller {
 
     Seq(
       ("completed" + instance.asString, "completed", Some(ActivationEntityLimit.MAX_ACTIVATION_LIMIT)),
-      ("health", "health", None),
+      ("energyProfile", "energy-profile", None),
       ("cacheInvalidation", "cache-invalidation", None),
       ("events", "events", None)).foreach {
       case (topic, topicConfigurationKey, maxMessageBytes) =>

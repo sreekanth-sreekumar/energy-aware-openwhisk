@@ -1,37 +1,34 @@
 package org.apache.openwhisk.core.loadBalancer
 
-
 import org.apache.openwhisk.common.{Logging, NestedSemaphore, TransactionId}
-import org.apache.openwhisk.core.connector.ActivationMessage
-import org.apache.openwhisk.core.entity.{EntityName, ExecutableWhiskActionMetaData, FullyQualifiedEntityName, InvokerInstanceId}
-import pureconfig._
-import pureconfig.generic.auto._
+import org.apache.openwhisk.core.entity.{EntityName, FullyQualifiedEntityName, InvokerInstanceId}
 
 import java.util.concurrent.ThreadLocalRandom
 
-trait Scheduler {
+trait InvokerScheduler {
   def getInvokerHash(invoker: InvokerInstanceId): Int
   def getFunctionHash(namespace: EntityName, action: FullyQualifiedEntityName): Int
   def scheduleFunction(
-    action: ExecutableWhiskActionMetaData,
-    msg: ActivationMessage,
+    activationRecord: ActivationRecord,
     invokers: IndexedSeq[InvokerEnergyHealth],
     dispatched: IndexedSeq[NestedSemaphore[FullyQualifiedEntityName]],
     stepSizes: Seq[Int])(implicit logging: Logging, transId: TransactionId): Option[(InvokerInstanceId, Boolean)]
 }
 
 
-abstract class CommonScheduler extends Scheduler {
+abstract class CommonScheduler extends InvokerScheduler {
 
-  val numBuckets: Int = 360
+  protected val bucketSize = 1000
 
   /* Get invoker has from instance id and maps it to a 360 bucketSize*/
   override def getInvokerHash(invoker: InvokerInstanceId): Int = {
-    invoker.toString.hashCode().abs % numBuckets
+    val hash = invoker.hashCode().abs % bucketSize
+    hash
   }
 
   override def getFunctionHash(namespace: EntityName, action: FullyQualifiedEntityName): Int = {
-    (namespace.asString.hashCode() ^ action.asString.hashCode()).abs % numBuckets
+    val hash = (namespace.asString.hashCode() ^ action.asString.hashCode()).abs % bucketSize
+    hash
   }
 
   def schedule(maxConcurrent: Int,

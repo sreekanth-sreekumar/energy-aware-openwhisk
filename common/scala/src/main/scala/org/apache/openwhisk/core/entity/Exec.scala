@@ -18,11 +18,10 @@
 package org.apache.openwhisk.core.entity
 
 import java.nio.charset.StandardCharsets
-
 import org.apache.openwhisk.core.ConfigKeys
 
 import scala.util.matching.Regex
-import spray.json._
+import spray.json.{JsString, _}
 import spray.json.DefaultJsonProtocol._
 import org.apache.openwhisk.core.entity.Attachments._
 import org.apache.openwhisk.core.entity.ExecManifest._
@@ -372,6 +371,36 @@ object Exec extends ArgNormalizer[Exec] with DefaultJsonProtocol {
   }
 }
 
+object ExecMetaData extends ArgNormalizer[ExecMetaData] with DefaultJsonProtocol {
+  implicit val imageNameFormat: RootJsonFormat[ImageName] = jsonFormat4(ImageName.apply)
+  implicit lazy val serdes: RootJsonFormat[ExecMetaData] = new RootJsonFormat[ExecMetaData] {
+    override def read(json: JsValue): ExecMetaData = json match {
+      case JsObject(fields) => {
+        new ExecMetaData {
+          override val entryPoint: Option[String] = fields.get("entryPoint").flatMap {
+            case JsString(s) if s.nonEmpty => Some(s)
+            case _ => None
+          }
+          override val image: ImageName = imageNameFormat.read(fields("image"))
+          override val pull: Boolean = fields("pull").convertTo[Boolean]
+          override val binary: Boolean = fields("binary").convertTo[Boolean]
+          override val kind: String = fields("kind").convertTo[String]
+          override val deprecated: Boolean = fields("deprecated").convertTo[Boolean]
+        }
+      }
+      case _ => deserializationError("Invalid ExecMetaData")
+    }
+    override def write(metaData: ExecMetaData): JsValue = JsObject(
+      "entryPoint" -> JsString(metaData.entryPoint.getOrElse("")),
+      "image" -> imageNameFormat.write(metaData.image),
+      "pull" -> JsBoolean(metaData.pull),
+      "binary" -> JsBoolean(metaData.binary),
+      "kind" -> JsString(metaData.kind),
+      "deprecated" -> JsBoolean(metaData.deprecated)
+    )
+  }
+}
+
 protected[core] object ExecMetaDataBase extends ArgNormalizer[ExecMetaDataBase] with DefaultJsonProtocol {
 
   // The possible values of the JSON 'kind' field for certain runtimes:
@@ -409,6 +438,8 @@ protected[core] object ExecMetaDataBase extends ArgNormalizer[ExecMetaDataBase] 
             "binary" -> JsBoolean(b.binary))
         val main = b.entryPoint.map("main" -> JsString(_))
         JsObject(base ++ main)
+
+      case _ => deserializationError("Invalid ExecMetaDataBase")
     }
 
     override def read(v: JsValue) = {

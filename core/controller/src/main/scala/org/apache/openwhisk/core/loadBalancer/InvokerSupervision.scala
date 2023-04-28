@@ -18,7 +18,6 @@
 package org.apache.openwhisk.core.loadBalancer
 
 import java.nio.charset.StandardCharsets
-
 import scala.collection.immutable
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -37,6 +36,7 @@ import org.apache.openwhisk.core.database.NoDocumentException
 import org.apache.openwhisk.core.entity.ActivationId.ActivationIdGenerator
 import org.apache.openwhisk.core.entity._
 import org.apache.openwhisk.core.entity.types.EntityStore
+import org.apache.openwhisk.core.invoker.EnergyProfile
 
 // Received events
 case object GetStatus
@@ -75,6 +75,9 @@ object InvocationFinishedResult {
   case object Success extends InvocationFinishedResult
   // The activation could not be executed because of a system error
   case object SystemError extends InvocationFinishedResult
+
+  // The activation could not be executed because of energy error
+  case object EnergyError extends InvocationFinishedResult
   // The active-ack did not arrive before it timed out
   case object Timeout extends InvocationFinishedResult
 }
@@ -83,7 +86,7 @@ case class ActivationRequest(msg: ActivationMessage, invoker: InvokerInstanceId)
 case class InvocationFinishedMessage(invokerInstance: InvokerInstanceId, result: InvocationFinishedResult)
 
 // Sent to a monitor if the state changed
-case class CurrentInvokerPoolState(newState: IndexedSeq[InvokerEnergyHealth])
+case class CurrentInvokerPoolState(newState: IndexedSeq[InvokerEnergyHealth], printLog: Boolean)
 
 // Data stored in the Invoker
 final case class InvokerInfo(buffer: RingBuffer[InvocationFinishedResult])
@@ -120,18 +123,20 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
 
   def receive: Receive = {
     case p: EnergyProfileMessage =>
-      val invoker = instanceToRef.getOrElse(p.instance.toInt, registerInvoker(p.instance, p.currEnergy))
+      val invoker = instanceToRef.getOrElse(p.instance.toInt, registerInvoker(p.instance,
+        EnergyProfile(p.panelOutput, p.currBat, p.batRatio, p.excessEnergy)))
       instanceToRef = instanceToRef.updated(p.instance.toInt, invoker)
 
       // For the case when the invoker was restarted and got a new displayed name
       val oldHealth = status(p.instance.toInt)
       if (oldHealth.id != p.instance) {
-        status = status.updated(p.instance.toInt, new InvokerEnergyHealth(p.instance, p.currEnergy, oldHealth.status))
         refToInstance = refToInstance.updated(invoker, p.instance)
       }
 
       // Updating status to keep fresh status of energy
-      status = status.updated(p.instance.toInt, new InvokerEnergyHealth(p.instance, p.currEnergy, oldHealth.status))
+      status = status.updated(p.instance.toInt, new InvokerEnergyHealth(p.instance,
+        EnergyProfile(p.panelOutput, p.currBat, p.batRatio, p.excessEnergy), oldHealth.status))
+      logStatus(false)
 
       invoker.forward(p)
 
@@ -144,14 +149,14 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
     case CurrentState(invoker, currentState: InvokerState) =>
       refToInstance.get(invoker).foreach { instance =>
         val oldHealth = status(instance.toInt)
-        status = status.updated(instance.toInt, new InvokerEnergyHealth(instance, oldHealth.totalEnergy, currentState))
+        status = status.updated(instance.toInt, new InvokerEnergyHealth(instance, oldHealth.energyProfile, currentState))
       }
       logStatus()
 
     case Transition(invoker, oldState: InvokerState, newState: InvokerState) =>
       refToInstance.get(invoker).foreach { instance =>
         val oldHealth = status(instance.toInt)
-        status = status.updated(instance.toInt, new InvokerEnergyHealth(instance, oldHealth.totalEnergy, newState))
+        status = status.updated(instance.toInt, new InvokerEnergyHealth(instance, oldHealth.energyProfile, newState))
       }
       logStatus()
 
@@ -159,10 +164,12 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
     case msg: ActivationRequest => sendActivationToInvoker(msg.msg, msg.invoker).pipeTo(sender)
   }
 
-  def logStatus(): Unit = {
-    monitor.foreach(_ ! CurrentInvokerPoolState(status))
-    val pretty = status.map(i => s"${i.id.toInt} -> ${i.status}")
-    logging.info(this, s"invoker status changed to ${pretty.mkString(", ")}")
+  def logStatus(print: Boolean = true): Unit = {
+    monitor.foreach(_ ! CurrentInvokerPoolState(status, print))
+    if (print) {
+      val pretty = status.map(i => s"${i.id.toInt} -> ${i.status}")
+      logging.info(this, s"invoker status changed to ${pretty.mkString(", ")}")
+    }
   }
 
   /** Receive Ping messages from invokers. */
@@ -195,7 +202,7 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
   def padToIndexed[A](list: IndexedSeq[A], n: Int, f: (Int) => A): IndexedSeq[A] = list ++ (list.size until n).map(f)
 
   // Register a new invoker
-  def registerInvoker(instanceId: InvokerInstanceId, currEnergy: Double): ActorRef = {
+  def registerInvoker(instanceId: InvokerInstanceId, energyProfile: EnergyProfile): ActorRef = {
     logging.info(this, s"registered a new invoker: invoker${instanceId.toInt}")(TransactionId.invokerHealth)
 
     // Grow the underlying status sequence to the size needed to contain the incoming ping. Dummy values are created
@@ -203,8 +210,8 @@ class InvokerPool(childFactory: (ActorRefFactory, InvokerInstanceId) => ActorRef
     status = padToIndexed(
       status,
       instanceId.toInt + 1,
-      i => new InvokerEnergyHealth(InvokerInstanceId(i, userMemory = instanceId.userMemory), currEnergy, Offline))
-    status = status.updated(instanceId.toInt, new InvokerEnergyHealth(instanceId, currEnergy, Offline))
+      i => new InvokerEnergyHealth(InvokerInstanceId(i, userMemory = instanceId.userMemory), energyProfile, Offline))
+    status = status.updated(instanceId.toInt, new InvokerEnergyHealth(instanceId, energyProfile, Offline))
 
     val ref = childFactory(context, instanceId)
     ref ! SubscribeTransitionCallBack(self) // register for state change events
@@ -318,7 +325,8 @@ class InvokerActor(invokerInstance: InvokerInstanceId, controllerInstance: Contr
   // To be used for all states that should send test actions to reverify the invoker
   val healthPingingState: StateFunction = {
     case Event(e: EnergyProfileMessage, _) =>
-      if(e.currEnergy <= PowerLimit.STD_POWER) {
+      /* If the battery capacity is less than 10% we set the invoker as noenergy*/
+      if(e.batRatio <= 0.1) {
         goto(Noenergy)
       }
       else { stay }
@@ -337,7 +345,7 @@ class InvokerActor(invokerInstance: InvokerInstanceId, controllerInstance: Contr
   /** A Noenergy invoker represents an invoker that is responding, but doesn't have energy to execute actions */
   when(Noenergy, stateTimeout = healthyTimeout) {
     case Event(e: EnergyProfileMessage, _) =>
-      if (e.currEnergy >= PowerLimit.STD_POWER) {
+      if (e.batRatio >= 0.1) {
         goto(Healthy)
       }
       else {
@@ -352,7 +360,7 @@ class InvokerActor(invokerInstance: InvokerInstanceId, controllerInstance: Contr
    */
   when(Healthy, stateTimeout = healthyTimeout) {
     case Event(e: EnergyProfileMessage, _) =>
-      if (e.currEnergy <= PowerLimit.STD_POWER) {
+      if (e.batRatio <= 0.1) {
         goto(Noenergy)
       }
       else {
@@ -408,6 +416,10 @@ class InvokerActor(invokerInstance: InvokerInstanceId, controllerInstance: Contr
     // invoker queue or in progress while the invoker's status flipped to Unhealthy.
     if (result == InvocationFinishedResult.Success && stateName == Unhealthy) {
       invokeTestAction()
+    }
+
+    if (result == InvocationFinishedResult.EnergyError && stateName == Healthy) {
+      goto(Noenergy)
     }
 
     // Stay in online if the activations was successful.

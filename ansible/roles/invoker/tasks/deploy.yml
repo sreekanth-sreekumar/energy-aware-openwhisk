@@ -24,13 +24,13 @@
     invoker_name: "{{ name_prefix ~ ((invoker_index_base | int) + host_group.index(inventory_hostname)) }}"
     invoker_index: "{{ (invoker_index_base | int) + host_group.index(inventory_hostname) }}"
 
-#- name: "pull invoker image with tag {{docker.image.tag}}"
-#  shell: "docker pull {{docker_registry}}{{ docker.image.prefix }}/invoker:{{docker.image.tag}}"
-#  when: docker_registry != ""
-#  register: result
-#  until: (result.rc == 0)
-#  retries: "{{ docker.pull.retries }}"
-#  delay: "{{ docker.pull.delay }}"
+- name: "pull invoker image with tag {{docker.image.tag}}"
+  shell: "docker pull {{docker_registry}}{{ docker.image.prefix }}/invoker:{{docker.image.tag}}"
+  when: docker_registry != ""
+  register: result
+  until: (result.rc == 0)
+  retries: "{{ docker.pull.retries }}"
+  delay: "{{ docker.pull.delay }}"
 
 ###
 # This task assumes that the images are local to the invoker host already if there is no prefix or tag

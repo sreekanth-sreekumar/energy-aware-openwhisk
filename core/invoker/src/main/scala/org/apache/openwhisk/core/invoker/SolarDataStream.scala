@@ -1,47 +1,50 @@
 package org.apache.openwhisk.core.invoker
 
-
-import java.sql.Timestamp
-import java.text.{DateFormat, SimpleDateFormat}
+import java.time.Instant
 import scala.collection.immutable.SortedMap
 import scala.io.Source
 
 object OwTimestamp {
-  def instance(timeStr: String): Timestamp = {
-    val dateFormat: DateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm")
-    val date: Option[Timestamp] = {
+  def instance(timeStr: String): Option[Instant] = {
+    val instant: Option[Instant] = {
       try {
-        Some(new Timestamp(dateFormat.parse(timeStr).getTime))
+        Some(Instant.parse(timeStr))
       } catch {
-        case _: Exception => Some(Timestamp.valueOf("19700101'T'000000"))
+        case _: Exception => {
+          None
+        }
       }
     }
-
-    date.getOrElse(Timestamp.valueOf(timeStr))
+    instant
   }
 }
 
 object SolarDataStream {
 
-  implicit def ordered: Ordering[Timestamp] = (x: Timestamp, y: Timestamp) => x compareTo y
+  implicit def ordered: Ordering[Instant] = (x: Instant, y: Instant) => x compareTo y
 
-  def instance(path: String): SortedMap[Timestamp, SolarDataStruct] = {
-    val bufferedSource = Source.fromFile(path)
-    var dataMap: Map[Timestamp, SolarDataStruct] = Map()
+  def instance(instance: Int): SortedMap[Instant, SolarDataStruct] = {
+    val bufferedSource = Source.fromFile("/solar-data/" ++ "invoker" + instance.toString ++ ".csv")
+    var dataMap: Map[Instant, SolarDataStruct] = Map()
     val lines = bufferedSource.getLines().drop(1)
 
     for (line <- lines) {
       val cols = line.split(",").map(_.trim)
-      val periodStart = OwTimestamp.instance(cols(0))
-      val solarData = SolarDataStruct(
-        airTemp = cols(3).toDouble,
-        tilt = cols(4).toInt,
-        panelTemp = cols(5).toFloat,
-        panelOutput = cols(6).toFloat
-      )
-      dataMap += (periodStart -> solarData)
+      val periodStart = OwTimestamp.instance(cols(2))
+      periodStart match {
+        case Some(instant: Instant) =>
+          val solarData = SolarDataStruct(
+            airTemp = cols(5).toDouble,
+            tilt = cols(6).toInt,
+            panelTemp = cols(7).toFloat,
+            panelOutput = cols(8).toFloat
+          )
+          dataMap = dataMap + (instant -> solarData)
+        case _ => ()
+      }
+
     }
-    SortedMap[Timestamp, SolarDataStruct]() += dataMap
+    SortedMap[Instant, SolarDataStruct]() ++ dataMap
   }
 }
 

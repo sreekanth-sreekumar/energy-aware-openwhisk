@@ -1,5 +1,4 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
+/* Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
@@ -167,6 +166,7 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
 
         createdContainer match {
           case Some(((actor, data), containerState)) =>
+            //increment active count before storing in pool map
             //increment active count before storing in pool map
             val newData = data.nextRun(r)
             val container = newData.getContainer

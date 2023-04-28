@@ -195,6 +195,7 @@ object WhiskConfig {
 object ConfigKeys {
   val cluster = "whisk.cluster"
   val loadbalancer = "whisk.loadbalancer"
+  val redisConf = "whisk.redis"
   val buildInformation = "whisk.info"
 
   val couchdb = "whisk.couchdb"
@@ -232,8 +233,6 @@ object ConfigKeys {
   val runtimesRegistry = s"$containerFactory.runtimes-registry"
   val userImagesRegistry = s"$containerFactory.user-images-registry"
   val containerPool = "whisk.container-pool"
-  val solarData = "whisk.solar-data"
-  val solarInitialConfig = "whisk.solar-initial-config"
   val blacklist = "whisk.blacklist"
 
   val kubernetes = "whisk.kubernetes"
@@ -279,4 +278,8 @@ object ConfigKeys {
   val parameterStorage = "whisk.parameter-storage"
 
   val azBlob = "whisk.azure-blob"
+
+  def getSolarKeys(instanceId: Int): String = {
+    s"whisk.solar-initial-config.invoker$instanceId"
+  }
 }

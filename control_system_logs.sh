@@ -1,52 +1,25 @@
 #!/bin/bash
 
 # List of machines to run the script on
-machines=("192.168.0.11")
+machines=(
+    "192.168.0.11" "invoker0" "192.168.0.12" "invoker1" "192.168.0.13" "invoker2" "192.168.0.14"
+     "invoker3" "192.168.0.15" "invoker4" "192.168.0.16" "invoker5" "192.168.0.17" "invoker6"
+     "192.168.0.18" "invoker7" "192.168.0.19" "invoker8"
+)
 username="pi"
-bash_script_dir="./collect_stat.sh"
 
-for MACHINE in "${machines[@]}"; do
-  echo "Transferring to $MACHINE"
-  scp "$bash_script_dir" "$username@$MACHINE:collect_stat.sh"
-done
-
-# Function to start the script on a machine
-function start_script() {
-  echo "Starting collect script on $1"
-  ssh "$1" "nohup bash /home/pi/collect_stat.sh > /dev/null 2>&1 &"
-  echo "Started collect script on $1"
-}
-
+mkdir ~/ow_exps/weighted_dist_logs/
 # Loop through the machines and start the script on each one
-for MACHINE in "${machines[@]}"; do
-  start_script "$username@$MACHINE"
-done
-
-# Function to stop the script on all machines
-function stop_script() {
-  echo "Stopping collect script on all machines..."
-  for MACHINE in "${machines[@]}"; do
-    ssh "$username@$MACHINE" "pkill -f /home/pi/collect_stat.sh"
-    echo "Stopped collect script on $MACHINE"
+for ((i=0; i<${#machines[@]}; i+=2)); do
+  ip="${machines[$i]}"
+  machine="${machines[$i+1]}"
+  echo "${machine}"
+  echo "${ip}"
+  source_path="${username}@${ip}:/var/tmp/wsklogs/${machine}/${machine}_logs.log"
+  echo "$source_path"
+  dest_path="/home/sreekanth/ow_exps/weighted_dist_logs/"
+  scp "$source_path" "$dest_path"
+  echo "Copied $machine"
   done
-  mkdir ~/ow_exps/col_warm/
-  scp pi@192.168.0.11:/home/pi/system_stats.log ~/ow_exps/col_warm/system_stats.log
-  scp pi@192.168.0.11:/var/tmp/wsklogs/invoker0/invoker0_logs.log ~/ow_exps/col_warm/invoker.log
-  cp /var/tmp/wsklogs/controller0/controller0_logs.log ~/ow_exps/col_warm/controller.log
 
-  rm -f /var/tmp/wsklogs/controller0/controller0_logs.log
-
-  for MACHINE in "${machines[@]}"; do
-    ssh "$username@$MACHINE" "rm -f /var/tmp/wsklogs/invoker0/invoker0_logs.log /home/pi/system_stats.log /home/pi/collect_stat.sh"
-    echo "Cleaned up $MACHINE"
-  done
-  pid=$$
-  kill $pid
-}
-
-# Register the stop_script function to be called when a SIGINT signal is received
-trap stop_script SIGINT
-
-# Wait for the script to be interrupted by a SIGINT signal
-echo "Press CTRL+C to stop the script on all machines"
-while true; do sleep 1; done
+cp /var/tmp/wsklogs/controller0/controller0_logs.log ~/ow_exps/weighted_dist_logs/controller.log

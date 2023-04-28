@@ -18,9 +18,9 @@
 package org.apache.openwhisk.core.loadBalancer
 
 import akka.actor.ActorRef
+
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.LongAdder
-
 import akka.actor.ActorSystem
 import akka.event.Logging.InfoLevel
 import akka.stream.ActorMaterializer
@@ -31,7 +31,6 @@ import org.apache.openwhisk.common.LoggingMarkers._
 import org.apache.openwhisk.common._
 import org.apache.openwhisk.core.connector._
 import org.apache.openwhisk.core.entity._
-import org.apache.openwhisk.core.entity.size._
 import org.apache.openwhisk.core.{ConfigKeys, WhiskConfig}
 
 import scala.collection.concurrent.TrieMap
@@ -113,28 +112,27 @@ abstract class CommonLoadBalancer(config: WhiskConfig,
    * the DB poll which is also trying to do the same.
    * Once the completion ack arrives, activationSlots entry will be removed.
    */
-  protected def setupActivation(msg: ActivationMessage,
-                                action: ExecutableWhiskActionMetaData,
+  protected def setupActivation(activationRecord: ActivationRecord,
                                 instance: InvokerInstanceId): Future[Either[ActivationId, WhiskActivation]] = {
 
     // Needed for emitting metrics.
     totalActivations.increment()
-    val isBlackboxInvocation = action.exec.pull
+    val isBlackboxInvocation = activationRecord.isBlackbox
     val totalActivationMemory =
       if (isBlackboxInvocation) totalBlackBoxActivationMemory else totalManagedActivationMemory
-    totalActivationMemory.add(action.limits.memory.megabytes)
+    totalActivationMemory.add(activationRecord.memoryLimit)
 
-    activationsPerNamespace.getOrElseUpdate(msg.user.namespace.uuid, new LongAdder()).increment()
+    activationsPerNamespace.getOrElseUpdate(activationRecord.msg.user.namespace.uuid, new LongAdder()).increment()
 
     // Completion Ack must be received within the calculated time.
-    val completionAckTimeout = calculateCompletionAckTimeout(action.limits.timeout.duration)
+    val completionAckTimeout = calculateCompletionAckTimeout(activationRecord.timeLimit)
 
     // If activation is blocking, store a promise that we can mark successful later on once the result ack
     // arrives. Return a Future representing the promise to caller.
     // If activation is non-blocking, return a successfully completed Future to caller.
-    val resultPromise = if (msg.blocking) {
-      activationPromises.getOrElseUpdate(msg.activationId, Promise[Either[ActivationId, WhiskActivation]]()).future
-    } else Future.successful(Left(msg.activationId))
+    val resultPromise = if (activationRecord.msg.blocking) {
+      activationPromises.getOrElseUpdate(activationRecord.msg.activationId, Promise[Either[ActivationId, WhiskActivation]]()).future
+    } else Future.successful(Left(activationRecord.msg.activationId))
 
     // Install a timeout handler for the catastrophic case where a completion ack is not received at all
     // (because say an invoker is down completely, or the connection to the message bus is disrupted) or when
@@ -146,23 +144,17 @@ abstract class CommonLoadBalancer(config: WhiskConfig,
     // book-keeping will allow the load balancer to send more activations to the invoker. This can lead to
     // invoker overloads so that activations need to wait until other activations complete.
     activationSlots.getOrElseUpdate(
-      msg.activationId, {
+      activationRecord.msg.activationId, {
         val timeoutHandler = actorSystem.scheduler.scheduleOnce(completionAckTimeout) {
-          processCompletion(msg.activationId, msg.transid, forced = true, isSystemError = false, instance = instance)
+          processCompletion(activationRecord.msg.activationId, TransactionId.unknown, forced = true,
+            isSystemError = false, isEnergyError = false, instance = instance)
         }
 
         // please note: timeoutHandler.cancel must be called on all non-timeout paths, e.g. Success
         ActivationEntry(
-          msg.activationId,
-          msg.user.namespace.uuid,
+          activationRecord,
           instance,
-          action.limits.memory.megabytes.MB,
-          action.limits.timeout.duration,
-          action.limits.concurrency.maxConcurrent,
-          action.fullyQualifiedName(true),
-          timeoutHandler,
-          isBlackboxInvocation,
-          msg.blocking)
+          timeoutHandler)
       })
 
     resultPromise
@@ -212,6 +204,7 @@ abstract class CommonLoadBalancer(config: WhiskConfig,
             acknowledegment.transid,
             forced = false,
             isSystemError = acknowledegment.isSystemError.getOrElse(false),
+            isEnergyError = acknowledegment.isEnergyError.getOrElse(false),
             instance)
         }
 
@@ -261,6 +254,7 @@ abstract class CommonLoadBalancer(config: WhiskConfig,
                                                 tid: TransactionId,
                                                 forced: Boolean,
                                                 isSystemError: Boolean,
+                                                isEnergyError: Boolean,
                                                 instance: InstanceId): Unit = {
 
     val invoker = instance match {
@@ -275,18 +269,33 @@ abstract class CommonLoadBalancer(config: WhiskConfig,
       // Left generally is considered a Success, since that could be a message not fitting into Kafka
       if (isSystemError) {
         InvocationFinishedResult.SystemError
+      } else if (isEnergyError) {
+        InvocationFinishedResult.EnergyError
       } else {
         InvocationFinishedResult.Success
       }
     }
 
+
+
     activationSlots.remove(aid) match {
       case Some(entry) =>
         totalActivations.decrement()
         val totalActivationMemory =
-          if (entry.isBlackbox) totalBlackBoxActivationMemory else totalManagedActivationMemory
-        totalActivationMemory.add(entry.memoryLimit.toMB * (-1))
-        activationsPerNamespace.get(entry.namespaceId).foreach(_.decrement())
+          if (entry.activation.isBlackbox) totalBlackBoxActivationMemory else totalManagedActivationMemory
+        totalActivationMemory.add(entry.activation.memoryLimit * (-1))
+        activationsPerNamespace.get(entry.activation.msg.user.namespace.uuid).foreach(_.decrement())
+
+        if (isEnergyError) {
+          if (this.isInstanceOf[EnergyAwareLoadBalancer]) {
+            val energyObject = this.asInstanceOf[EnergyAwareLoadBalancer]
+            energyObject.redisDataStore.map(store => store.addToQueue(Left(entry.activation)).andThen {
+              case Success(_) => Future.failed(
+                LoadBalancerException(s"The invoker ${instance.toString} was operating at critical level ${entry.activation.msg.activationId}. Will try again until retry limit (${energyObject.redisConf.maxRetries})"))
+              case Failure(e) => Future.failed(LoadBalancerException(s"The invoker ${instance.toString} was operating at critical level. Cannot add ${entry.activation.msg.activationId} to dataStore either"))
+            })
+          }
+        }
 
         invoker.foreach(releaseInvoker(_, entry))
 
@@ -295,7 +304,7 @@ abstract class CommonLoadBalancer(config: WhiskConfig,
           // notice here that the activationPromises is not touched, because the expectation is that
           // the active ack is received as expected, and processing that message removed the promise
           // from the corresponding map
-          logging.info(this, s"received completion ack for '$aid', system error=$isSystemError")(tid)
+          logging.info(this, s"received completion ack for '$aid', system error=$isSystemError, energy-error=$isEnergyError")(tid)
 
           MetricEmitter.emitCounterMetric(LOADBALANCER_COMPLETION_ACK_REGULAR)
 
@@ -305,12 +314,12 @@ abstract class CommonLoadBalancer(config: WhiskConfig,
           activationPromises
             .remove(aid)
             .foreach(_.tryFailure(new Throwable("no completion or active ack received yet")))
-          val actionType = if (entry.isBlackbox) "blackbox" else "managed"
-          val blockingType = if (entry.isBlocking) "blocking" else "non-blocking"
-          val completionAckTimeout = calculateCompletionAckTimeout(entry.timeLimit)
+          val actionType = if (entry.activation.isBlackbox) "blackbox" else "managed"
+          val blockingType = if (entry.activation.msg.blocking) "blocking" else "non-blocking"
+          val completionAckTimeout = calculateCompletionAckTimeout(entry.activation.timeLimit)
           logging.warn(
             this,
-            s"forced completion ack for '$aid', action '${entry.fullyQualifiedEntityName}' ($actionType), $blockingType, mem limit ${entry.memoryLimit.toMB} MB, time limit ${entry.timeLimit.toMillis} ms, completion ack timeout $completionAckTimeout from $instance")(
+            s"forced completion ack for '$aid', action '${entry.activation.fullyQualifiedEntityName}' ($actionType), $blockingType, mem limit ${entry.activation.memoryLimit} MB, time limit ${entry.activation.timeLimit.toMillis} ms, completion ack timeout $completionAckTimeout from $instance")(
             tid)
 
           MetricEmitter.emitCounterMetric(LOADBALANCER_COMPLETION_ACK_FORCED)
@@ -337,7 +346,7 @@ abstract class CommonLoadBalancer(config: WhiskConfig,
         // message - but not in time.
         logging.warn(
           this,
-          s"received completion ack for '$aid' from $instance which has no entry, system error=$isSystemError")(tid)
+          s"received completion ack for '$aid' from $instance which has no entry, system error=$isSystemError energy error=$isEnergyError")(tid)
 
         MetricEmitter.emitCounterMetric(LOADBALANCER_COMPLETION_ACK_REGULAR_AFTER_FORCED)
       case None =>

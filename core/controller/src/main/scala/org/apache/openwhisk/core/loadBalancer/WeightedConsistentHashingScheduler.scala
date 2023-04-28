@@ -1,31 +1,33 @@
 package org.apache.openwhisk.core.loadBalancer
 
 import org.apache.openwhisk.common.{Logging, NestedSemaphore, TransactionId}
-import org.apache.openwhisk.core.connector.ActivationMessage
-import org.apache.openwhisk.core.entity.{ExecutableWhiskActionMetaData, FullyQualifiedEntityName, InvokerInstanceId}
+import org.apache.openwhisk.core.entity.{FullyQualifiedEntityName, InvokerInstanceId}
 
-class WeightedConsistentHashingScheduler extends CommonScheduler {
+object WeightedConsistentHashingScheduler extends CommonScheduler {
 
-  def getMod(a: Int): Int = a - a.floor.toInt
+  def getDifference(funcHash: Int, invHash: Int): Double = {
+    ((funcHash.toDouble/bucketSize.toDouble) - (invHash.toDouble/bucketSize.toDouble)).abs
+  }
 
-  override def scheduleFunction(action: ExecutableWhiskActionMetaData,
-    msg: ActivationMessage,
+  override def scheduleFunction(activationRecord: ActivationRecord,
     invokers: IndexedSeq[InvokerEnergyHealth],
     dispatched: IndexedSeq[NestedSemaphore[FullyQualifiedEntityName]],
     stepSizes: Seq[Int])(implicit logging: Logging, transId: TransactionId): Option[(InvokerInstanceId, Boolean)] = {
 
-      val fqn = action.fullyQualifiedName(true)
-      val functionHash = getFunctionHash(msg.user.namespace.name, action.fullyQualifiedName(false))
+      val fqn = activationRecord.fullyQualifiedEntityName
+      val functionHash = getFunctionHash(activationRecord.msg.user.namespace.name, activationRecord.fullyQualifiedEntityName)
       val step = stepSizes(functionHash % stepSizes.size)
       val numInvokers = invokers.size
-      val maxConcurrent = action.limits.concurrency.maxConcurrent
-      val slots = action.limits.memory.megabytes
+      val maxConcurrent = activationRecord.maxConcurrent
+      val slots = activationRecord.memoryLimit
 
+    /* Invoker weight is the ratio of total energy available to all invokers to the curr invoker energy*/
       if (numInvokers > 0) {
+        val totalEnergy = invokers.foldLeft(0.0)((acc, invoker) => acc + invoker.energyProfile.currBat + invoker.energyProfile.panelOutput)
         val sortedInvokers = invokers.sortBy { invoker =>
-          /* Performs weight dist hashing */
+          /* Scaling hashes between 0 and 1 */
           val invokerHash = getInvokerHash(invoker.id)
-          -math.log(getMod(1-(functionHash - invokerHash)))/invoker.totalEnergy
+          -totalEnergy * math.log((1 - getDifference(functionHash, invokerHash)))/(invoker.energyProfile.currBat + invoker.energyProfile.panelOutput)
         }
         schedule(maxConcurrent, fqn, sortedInvokers, dispatched, slots, 0, step)
       } else {

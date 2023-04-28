@@ -24,9 +24,9 @@ import org.apache.openwhisk.core.entity._
 
 import scala.concurrent.duration._
 import akka.http.scaladsl.model.StatusCodes._
-import java.util.concurrent.TimeUnit
 
-import org.apache.openwhisk.core.entity.ActivationResponse.{statusForCode, ERROR_FIELD}
+import java.util.concurrent.TimeUnit
+import org.apache.openwhisk.core.entity.ActivationResponse.{ERROR_FIELD, statusForCode}
 import org.apache.openwhisk.utils.JsHelpers
 
 /** Basic trait for messages that are sent on a message bus connector. */
@@ -95,6 +95,8 @@ abstract class AcknowledegmentMessage(private val tid: TransactionId) extends Me
    */
   def isSystemError: Option[Boolean]
 
+  def isEnergyError: Option[Boolean]
+
   def activationId: ActivationId
 
   /** Serializes the message to JSON. */
@@ -123,6 +125,8 @@ case class CombinedCompletionAndResultMessage private (override val transid: Tra
   override def messageType = "combined"
   override def result = Some(response)
   override def isSlotFree = Some(instance)
+
+  override def isEnergyError =  response.fold(_ => None, a => Some(a.response.isEnergyError))
   override def activationId = response.fold(identity, _.activationId)
   override def toJson = CombinedCompletionAndResultMessage.serdes.write(this)
   override def shrink = copy(response = response.flatMap(a => Left(a.activationId)))
@@ -138,11 +142,13 @@ case class CombinedCompletionAndResultMessage private (override val transid: Tra
 case class CompletionMessage private (override val transid: TransactionId,
                                       override val activationId: ActivationId,
                                       override val isSystemError: Option[Boolean],
+                                      override val isEnergyError: Option[Boolean],
                                       instance: InstanceId)
     extends AcknowledegmentMessage(transid) {
   override def messageType = "completion"
   override def result = None
   override def isSlotFree = Some(instance)
+
   override def toJson = CompletionMessage.serdes.write(this)
   override def shrink = this
   override def toString = activationId.asString
@@ -162,6 +168,8 @@ case class ResultMessage private (override val transid: TransactionId, response:
   override def result = Some(response)
   override def isSlotFree = None
   override def isSystemError = response.fold(_ => None, a => Some(a.response.isWhiskError))
+
+  override  def isEnergyError = response.fold(_ => None, a => Some(a.response.isEnergyError))
   override def activationId = response.fold(identity, _.activationId)
   override def toJson = ResultMessage.serdes.write(this)
   override def shrink = copy(response = response.flatMap(a => Left(a.activationId)))
@@ -186,7 +194,8 @@ object CombinedCompletionAndResultMessage extends DefaultJsonProtocol {
   def apply(transid: TransactionId,
             activation: WhiskActivation,
             instance: InstanceId): CombinedCompletionAndResultMessage =
-    new CombinedCompletionAndResultMessage(transid, Right(activation), Some(activation.response.isWhiskError), instance)
+    new CombinedCompletionAndResultMessage(transid, Right(activation),
+      Some(activation.response.isWhiskError), instance)
 
   implicit private val eitherSerdes = AcknowledegmentMessage.eitherResponse
   implicit val serdes = jsonFormat4(
@@ -200,14 +209,16 @@ object CompletionMessage extends DefaultJsonProtocol {
                     activation: WhiskActivation,
                     isSystemError: Option[Boolean],
                     instance: InstanceId): CompletionMessage =
-    new CompletionMessage(transid, activation.activationId, Some(activation.response.isWhiskError), instance)
+    new CompletionMessage(transid, activation.activationId, Some(activation.response.isWhiskError),
+      Some(activation.response.isEnergyError), instance)
 
   def apply(transid: TransactionId, activation: WhiskActivation, instance: InstanceId): CompletionMessage = {
-    new CompletionMessage(transid, activation.activationId, Some(activation.response.isWhiskError), instance)
+    new CompletionMessage(transid, activation.activationId, Some(activation.response.isWhiskError),
+      Some(activation.response.isEnergyError), instance)
   }
 
-  implicit val serdes = jsonFormat4(
-    CompletionMessage.apply(_: TransactionId, _: ActivationId, _: Option[Boolean], _: InstanceId))
+  implicit val serdes = jsonFormat5(
+    CompletionMessage.apply(_: TransactionId, _: ActivationId, _: Option[Boolean], _: Option[Boolean], _: InstanceId))
 }
 
 object ResultMessage extends DefaultJsonProtocol {
@@ -259,13 +270,19 @@ object AcknowledegmentMessage extends DefaultJsonProtocol {
   }
 }
 
-case class EnergyProfileMessage(instance: InvokerInstanceId, currEnergy: Double) extends Message {
+case class EnergyProfileMessage(
+    instance: InvokerInstanceId,
+    panelOutput: Double,
+    currBat: Double,
+    batRatio: Double,
+    excessEnergy: Double
+   ) extends Message {
   override def serialize: String = EnergyProfileMessage.serdes.write(this).compactPrint
 }
 
 object EnergyProfileMessage extends DefaultJsonProtocol {
   def parse(msg: String) = Try(serdes.read(msg.parseJson))
-  implicit val serdes = jsonFormat(EnergyProfileMessage.apply _, "name", "availEnergy")
+  implicit val serdes = jsonFormat(EnergyProfileMessage.apply _, "name", "panelOutput", "currBat", "batRatio", "excessEnergy")
 }
 
 case class PingMessage(instance: InvokerInstanceId) extends Message {

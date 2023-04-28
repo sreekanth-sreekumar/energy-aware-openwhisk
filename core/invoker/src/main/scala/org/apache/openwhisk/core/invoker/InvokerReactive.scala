@@ -45,7 +45,6 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-import javax.management._
 import java.lang.management.ManagementFactory
 import java.lang.management.OperatingSystemMXBean
 
@@ -80,7 +79,7 @@ class InvokerReactive(
   logging.info(this, s"LogStoreProvider: ${logsProvider.getClass}")
 
   private val energyProfile = actorSystem.actorOf(InvokerEnergyProfile.props(instance)(actorSystem, logging))
-
+  private var currEnergy: EnergyProfile = null
   /**
    * Factory used by the ContainerProxy to physically create a new container.
    *
@@ -240,6 +239,18 @@ class InvokerReactive(
         //set trace context to continue tracing
         WhiskTracerProvider.tracer.setTraceContext(transid, msg.traceContext)
 
+        /* Handling the case when the invoker energy goes below 10% after the activations were scheduled*/
+        if (currEnergy != null && currEnergy.batRatio <= 0.1) {
+          activationFeed ! MessageFeed.Processed
+          val activation = generateFallbackActivation(msg, ActivationResponse.energyError(Messages.invokerBatteryBelowCritical))
+          ack(
+            msg.transid,
+            activation,
+            false,
+            msg.rootControllerIndex,
+            msg.user.namespace.uuid,
+            CombinedCompletionAndResultMessage(transid, activation, instance))
+        }
         if (!namespaceBlacklist.isBlacklisted(msg.user)) {
           val start = transid.started(this, LoggingMarkers.INVOKER_ACTIVATION, logLevel = InfoLevel)
           handleActivationMessage(msg)
@@ -305,12 +316,16 @@ class InvokerReactive(
     val osBean: OperatingSystemMXBean = ManagementFactory.getOperatingSystemMXBean()
     val availableProcessors: Int = osBean.getAvailableProcessors()
     val systemLoadAverage: Double = osBean.getSystemLoadAverage()
-    val cpuLoadPercentage: Double = systemLoadAverage / availableProcessors * 100
-    val currentEnergy: Future[Double] = (energyProfile ? UpdateEnergyProfile(cpuLoadPercentage)).mapTo[Double]
+    val cpuLoadPercentage: Double = systemLoadAverage / availableProcessors
+    val currentEnergy: Future[EnergyProfile] = (energyProfile ? UpdateEnergyProfile(cpuLoadPercentage)).mapTo[EnergyProfile]
     currentEnergy.andThen {
       case Success(value) => {
-        energyProducer.send("energyProfile", EnergyProfileMessage(instance, value)).andThen {
-          case Failure(t) => logging.error(this, s"failed to send energy to the controller: $t")
+        currEnergy = value
+        logging.info(this, s"Pinged the controller with panelOutput: ${value.panelOutput}, " +
+          s"currBat: ${value.currBat}, batRatio: ${value.batRatio}, excessEnergy: ${value.excessEnergy}, cpuUtil: ${cpuLoadPercentage}")
+        energyProducer.send("energyProfile",
+          EnergyProfileMessage(instance, value.panelOutput, value.currBat, value.batRatio, value.excessEnergy)).andThen {
+            case Failure(t) => logging.error(this, s"failed to send energy to the controller: $t")
         }
       }
       case Failure(t) => logging.error(this, s"failed to retrieve energy profile information: $t")

@@ -48,6 +48,8 @@ protected[core] case class ActivationResponse private (statusCode: Int,
   def isApplicationError = statusCode == ActivationResponse.ApplicationError
   def isContainerError = statusCode == ActivationResponse.DeveloperError
   def isWhiskError = statusCode == ActivationResponse.WhiskError
+
+  def isEnergyError = statusCode == ActivationResponse.EnergyError
   def withoutResult = ActivationResponse(statusCode, None)
 
   override def toString = toJsonObject.compactPrint
@@ -62,6 +64,7 @@ protected[core] object ActivationResponse extends DefaultJsonProtocol {
   val ApplicationError = 1 // action ran but there was an error and it was handled
   val DeveloperError = 2 // action ran but failed to handle an error, or action did not run and failed to initialize
   val WhiskError = 3 // internal system error
+  val EnergyError = 4 // System down due to critical battery level
 
   val statusSuccess = "success"
   val statusApplicationError = "application_error"
@@ -89,7 +92,7 @@ protected[core] object ActivationResponse extends DefaultJsonProtocol {
   }
 
   private def error(code: Int, errorValue: JsValue, size: Option[Int]) = {
-    require(code == ApplicationError || code == DeveloperError || code == WhiskError)
+    require(code == ApplicationError || code == DeveloperError || code == WhiskError || code == EnergyError)
     ActivationResponse(code, Some(JsObject(ERROR_FIELD -> errorValue)), size)
   }
 
@@ -108,6 +111,8 @@ protected[core] object ActivationResponse extends DefaultJsonProtocol {
   protected[core] def whiskError(errorMsg: String) =
     error(WhiskError, JsString(errorMsg), None)
 
+  protected[core] def energyError(errorMsg: String) =
+    error(EnergyError, JsString(errorMsg), None)
   /**
    * Returns an ActivationResponse that is used as a placeholder for payload
    * Used as a feed for starting a sequence.
