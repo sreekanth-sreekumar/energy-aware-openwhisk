@@ -107,106 +107,107 @@ def get_cv_values(server_map):
     return cv_values
 
 
-avg_energy_map = {}
-gini_energy_map = {}
-coeff_variation_energy_map = {}
+if __name__ == '__main__':
+    avg_energy_map = {}
+    gini_energy_map = {}
+    coeff_variation_energy_map = {}
 
-gini_dist_map = {}
-coeff_variation_dist_map = {}
+    gini_dist_map = {}
+    coeff_variation_dist_map = {}
 
-for name in dir_names:
-    controller_file_path = f'./{name}/controller0_logs.log'
-    energy_map, dist_map, excess_energy_map = get_values_from_file(controller_file_path)
+    for name in dir_names:
+        controller_file_path = f'./{name}/controller0_logs.log'
+        energy_map, dist_map, excess_energy_map = get_values_from_file(controller_file_path)
 
-    avg_energy_values = get_avg_energy_values(energy_map)
-    avg_energy_map[name] = avg_energy_values
+        avg_energy_values = get_avg_energy_values(energy_map)
+        avg_energy_map[name] = avg_energy_values
 
-    gini_energy_values = get_gini_values(energy_map)
-    gini_energy_map[name] = gini_energy_values
+        gini_energy_values = get_gini_values(energy_map)
+        gini_energy_map[name] = gini_energy_values
 
-    cv_energy_values = get_cv_values(energy_map)
-    coeff_variation_energy_map[name] = cv_energy_values
+        cv_energy_values = get_cv_values(energy_map)
+        coeff_variation_energy_map[name] = cv_energy_values
 
-    gini_dist_values = get_gini_values(dist_map)
-    gini_dist_map[name] = gini_dist_values
+        gini_dist_values = get_gini_values(dist_map)
+        gini_dist_map[name] = gini_dist_values
 
-    cv_dist_values = get_cv_values(dist_map)
-    coeff_variation_dist_map[name] = cv_dist_values
+        cv_dist_values = get_cv_values(dist_map)
+        coeff_variation_dist_map[name] = cv_dist_values
 
-if not os.path.isdir('./fairness_graphs_new'):
-    os.mkdir('./fairness_graphs_new/')
+    if not os.path.isdir('./fairness_graphs_new'):
+        os.mkdir('./fairness_graphs_new/')
 
-# Plot avg energy plots
-for key in avg_energy_map.keys():
-    # Create the plot
-    plt.plot(range(len(avg_energy_map[key])), avg_energy_map[key], label=key)
+    # Plot avg energy plots
+    for key in avg_energy_map.keys():
+        # Create the plot
+        plt.plot(range(len(avg_energy_map[key])), avg_energy_map[key], label=key)
 
-# Add labels and legend
-plt.title('Avg energy across all invokers')
-plt.xlabel('Time period in minutes')
-plt.ylabel('Avg energy')
-plt.legend()
+    # Add labels and legend
+    plt.title('Avg energy across all invokers')
+    plt.xlabel('Time period in minutes')
+    plt.ylabel('Avg energy')
+    plt.legend()
 
-# Save the plot to a file
-plt.savefig('./fairness_graphs_new/avg_energy_graph.png')
-plt.close()
+    # Save the plot to a file
+    plt.savefig('./fairness_graphs_new/avg_energy_graph.png')
+    plt.close()
 
-# Plot gini index energy plots
-for key in gini_energy_map.keys():
-    # Create the plot
-    plt.plot(range(len(gini_energy_map[key])), gini_energy_map[key], label=key)
+    # Plot gini index energy plots
+    for key in gini_energy_map.keys():
+        # Create the plot
+        plt.plot(range(len(gini_energy_map[key])), gini_energy_map[key], label=key)
 
-# Add labels and legend
-plt.title('Energy gini index across all invokers')
-plt.xlabel('Time period in minutes')
-plt.ylabel('Gini Index')
-plt.legend()
+    # Add labels and legend
+    plt.title('Energy gini index across all invokers')
+    plt.xlabel('Time period in minutes')
+    plt.ylabel('Gini Index')
+    plt.legend()
 
-# Save the plot to a file
-plt.savefig('./fairness_graphs_new/gini_index_energy_graph.png')
-plt.close()
+    # Save the plot to a file
+    plt.savefig('./fairness_graphs_new/gini_index_energy_graph.png')
+    plt.close()
 
-# Plot coeff of variation energy plots
-for key in coeff_variation_energy_map.keys():
-    # Create the plot
-    plt.plot(range(len(coeff_variation_energy_map[key])), coeff_variation_energy_map[key], label=key)
+    # Plot coeff of variation energy plots
+    for key in coeff_variation_energy_map.keys():
+        # Create the plot
+        plt.plot(range(len(coeff_variation_energy_map[key])), coeff_variation_energy_map[key], label=key)
 
-# Add labels and legend
-plt.title('Coefficient of variation across all invokers')
-plt.xlabel('Time period in minutes')
-plt.ylabel('Coefficient of variation')
-plt.legend()
+    # Add labels and legend
+    plt.title('Coefficient of variation across all invokers')
+    plt.xlabel('Time period in minutes')
+    plt.ylabel('Coefficient of variation')
+    plt.legend()
 
-# Save the plot to a file
-plt.savefig('./fairness_graphs_new/cv_energy_graph.png')
-plt.close()
+    # Save the plot to a file
+    plt.savefig('./fairness_graphs_new/cv_energy_graph.png')
+    plt.close()
 
-# Plot gini index of function distribution plots
-for key in gini_dist_map.keys():
-    # Create the plot
-    plt.plot(range(len(gini_dist_map[key])), gini_dist_map[key], label=key)
+    # Plot gini index of function distribution plots
+    for key in gini_dist_map.keys():
+        # Create the plot
+        plt.plot(range(len(gini_dist_map[key])), gini_dist_map[key], label=key)
 
-# Add labels and legend
-plt.title('Function distribution gini index across all invokers')
-plt.xlabel('Time period in minutes')
-plt.ylabel('Function distribution')
-plt.legend()
+    # Add labels and legend
+    plt.title('Function distribution gini index across all invokers')
+    plt.xlabel('Time period in minutes')
+    plt.ylabel('Function distribution')
+    plt.legend()
 
-# Save the plot to a file
-plt.savefig('./fairness_graphs_new/gini_index_dist_graph.png')
-plt.close()
+    # Save the plot to a file
+    plt.savefig('./fairness_graphs_new/gini_index_dist_graph.png')
+    plt.close()
 
-# Plot gini index energy plots
-for key in coeff_variation_dist_map.keys():
-    # Create the plot
-    plt.plot(range(len(coeff_variation_dist_map[key])), coeff_variation_dist_map[key], label=key)
+    # Plot gini index energy plots
+    for key in coeff_variation_dist_map.keys():
+        # Create the plot
+        plt.plot(range(len(coeff_variation_dist_map[key])), coeff_variation_dist_map[key], label=key)
 
-# Add labels and legend
-plt.title('CV of function distribution across all invokers')
-plt.xlabel('Time period in minutes')
-plt.ylabel('Coefficient of variation')
-plt.legend()
+    # Add labels and legend
+    plt.title('CV of function distribution across all invokers')
+    plt.xlabel('Time period in minutes')
+    plt.ylabel('Coefficient of variation')
+    plt.legend()
 
-# Save the plot to a file
-plt.savefig('./fairness_graphs_new/cv_dist_graph.png')
-plt.close()
+    # Save the plot to a file
+    plt.savefig('./fairness_graphs_new/cv_dist_graph.png')
+    plt.close()
