@@ -20,8 +20,8 @@ config_root_dir: "{{ openwhisk_tmp_dir }}/wskconf"
 whisk_logs_dir: "{{ openwhisk_tmp_dir }}/wsklogs"
 coverage_enabled: "{{ lookup('env', 'GRADLE_COVERAGE') | default('false', true) | bool}}"
 coverage_logs_dir: "{{ openwhisk_tmp_dir }}/wskcov"
-docker_registry: ""
-docker_image_prefix: 'ssreekmr'
+docker_registry: "ssreekmr"
+docker_image_prefix: ''
 docker_dns: ""
 runtimes_bypass_pull_for_local_images: true
 invoker_use_runc: "{{ ansible_distribution != 'MacOSX' }}"
