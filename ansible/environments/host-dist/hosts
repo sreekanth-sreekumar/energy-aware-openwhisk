@@ -40,4 +40,4 @@ db
 etcd0            ansible_host=192.168.0.1 ansible_connection=ssh ansible_user=sreekanth
 
 [all:vars]
-ansible_ssh_private_key_file=~/.ssh/cluster_id_rsa
+ansible_ssh_private_key_file=~/.ssh/id_rsa
