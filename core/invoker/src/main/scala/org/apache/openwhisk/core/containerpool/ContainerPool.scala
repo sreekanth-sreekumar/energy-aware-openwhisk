@@ -28,7 +28,7 @@ import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.util.{Random, Try}
 
-case class ColdStartKey(kind: String, memory: ByteSize)
+case class StartKey(kind: String, memory: ByteSize)
 
 case object EmitMetrics
 
@@ -78,7 +78,8 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
   context.system.scheduler.schedule(30.seconds, 10.seconds, self, EmitMetrics)
 
   // Key is ColdStartKey, value is the number of cold Start in minute
-  var coldStartCount = immutable.Map.empty[ColdStartKey, Int]
+  var coldStartCount = immutable.Map.empty[StartKey, Int]
+  var warmStartCount = immutable.Map.empty[StartKey, Int]
 
   adjustPrewarmedContainer(true, false)
 
@@ -137,10 +138,13 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
                 // Is there enough space to create a new container or do other containers have to be removed?
                 if (hasPoolSpaceFor(busyPool ++ freePool, r.action.limits.memory.megabytes.MB)) {
                   takePrewarmContainer(r.action)
-                    .map(container => (container, "prewarmed"))
+                    .map(container => {
+                      incrementStartCount(r.action.exec.kind, r.action.limits.memory.megabytes.MB, "warm")
+                      (container, "prewarmed")
+                    })
                     .orElse {
                       val container = Some(createContainer(r.action.limits.memory.megabytes.MB), "cold")
-                      incrementColdStartCount(r.action.exec.kind, r.action.limits.memory.megabytes.MB)
+                      incrementStartCount(r.action.exec.kind, r.action.limits.memory.megabytes.MB, "cold")
                       container
                     }
                 } else None)
@@ -158,7 +162,7 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
                       .map(container => (container, "recreatedPrewarm"))
                       .getOrElse {
                         val container = (createContainer(r.action.limits.memory.megabytes.MB), "recreated")
-                        incrementColdStartCount(r.action.exec.kind, r.action.limits.memory.megabytes.MB)
+                        incrementStartCount(r.action.exec.kind, r.action.limits.memory.megabytes.MB, "cold")
                         container
                     }))
 
@@ -351,8 +355,11 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
         }
       }
     if (scheduled) {
+      logging.info(this, s"Total number of warm starts in this minute ${warmStartCount.values.sum}")
+      logging.info(this, s"Total number of cold starts in this minute ${coldStartCount.values.sum}")
       //   lastly, clear coldStartCounts each time scheduled event is processed to reset counts
-      coldStartCount = immutable.Map.empty[ColdStartKey, Int]
+      warmStartCount = immutable.Map.empty[StartKey, Int]
+      coldStartCount = immutable.Map.empty[StartKey, Int]
     }
   }
 
@@ -372,20 +379,28 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
   }
 
   /** this is only for cold start statistics of prewarm configs, e.g. not blackbox or other configs. */
-  def incrementColdStartCount(kind: String, memoryLimit: ByteSize): Unit = {
+
+  def incrementStartCount(kind: String, memoryLimit: ByteSize, key: String): Unit = {
     prewarmConfig
-      .filter { config =>
+      .filter {config =>
         kind == config.exec.kind && memoryLimit == config.memoryLimit
       }
       .foreach { _ =>
-        val coldStartKey = ColdStartKey(kind, memoryLimit)
-        coldStartCount.get(coldStartKey) match {
-          case Some(value) => coldStartCount = coldStartCount + (coldStartKey -> (value + 1))
-          case None        => coldStartCount = coldStartCount + (coldStartKey -> 1)
+        val startKey = StartKey(kind, memoryLimit)
+        key match {
+          case "cold" =>
+            coldStartCount.get(startKey) match {
+              case Some(value) => coldStartCount = coldStartCount + (startKey -> (value + 1))
+              case None => coldStartCount = coldStartCount + (startKey -> 1)
+            }
+          case "warm" =>
+            warmStartCount.get(startKey) match {
+              case Some(value) => warmStartCount = warmStartCount + (startKey -> (value + 1))
+              case None => warmStartCount = warmStartCount + (startKey -> 1)
+            }
         }
       }
   }
-
   /**
    * Takes a prewarm container out of the prewarmed pool
    * iff a container with a matching kind and memory is found.
@@ -619,7 +634,7 @@ object ContainerPool {
    */
   def increasePrewarms(init: Boolean,
                        scheduled: Boolean,
-                       coldStartCount: Map[ColdStartKey, Int],
+                       coldStartCount: Map[StartKey, Int],
                        prewarmConfig: List[PrewarmingConfig],
                        prewarmedPool: Map[ActorRef, PreWarmedData],
                        prewarmStartingPool: Map[ActorRef, (String, ByteSize)])(
@@ -671,11 +686,11 @@ object ContainerPool {
    * @param memory
    * @return the required prewarmed container number
    */
-  def getReactiveCold(coldStartCount: Map[ColdStartKey, Int],
+  def getReactiveCold(coldStartCount: Map[StartKey, Int],
                       config: ReactivePrewarmingConfig,
                       kind: String,
                       memory: ByteSize): Option[Int] = {
-    coldStartCount.get(ColdStartKey(kind, memory)).map { value =>
+    coldStartCount.get(StartKey(kind, memory)).map { value =>
       // Let's assume that threshold is `2`, increment is `1` in runtimes.json
       // if cold start number in previous minute is `2`, requireCount is `2/2 * 1 = 1`
       // if cold start number in previous minute is `4`, requireCount is `4/2 * 1 = 2`
