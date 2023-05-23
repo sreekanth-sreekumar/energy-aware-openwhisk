@@ -1,0 +1,35 @@
+ansible ansible_connection=local
+
+[edge]
+10.0.0.161         ansible_host=10.0.0.161 ansible_connection=ssh ansible_user=sreekanth
+
+[controllers]
+controller0         ansible_host=10.0.0.161 ansible_connection=ssh ansible_user=sreekanth
+;
+[kafkas]
+kafka0              ansible_host=10.0.0.161 ansible_connection=ssh ansible_user=sreekanth
+
+[zookeepers:children]
+kafkas
+
+[invokers]
+invoker0            ansible_host=10.0.0.231 ansible_connection=ssh ansible_user=sreekanthsreekumar
+
+; db group is only used if db.provider is CouchDB
+[db]
+10.0.0.161          ansible_host=10.0.0.161 ansible_connection=ssh ansible_user=sreekanth
+
+[elasticsearch:children]
+db
+
+[redis]
+10.0.0.161        ansible_host=10.0.0.161 ansible_connection=ssh ansible_user=sreekanth
+
+[apigateway]
+10.0.0.161        ansible_host=10.0.0.161 ansible_connection=ssh ansible_user=sreekanth
+
+[etcd]
+etcd0            ansible_host=10.0.0.161 ansible_connection=ssh ansible_user=sreekanth
+
+[all:vars]
+ansible_ssh_private_key_file=~/.ssh/two_machine_rsa
