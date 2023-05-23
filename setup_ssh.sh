@@ -7,14 +7,20 @@ machines=(
      "192.168.0.18" "192.168.0.19"
 )
 username="pi"
-
-
-# Generate SSH key pair if it doesn't exist
-if [ ! -f ~/.ssh/marvin1_id_rsa ]; then
-    ssh-keygen -t rsa -N "" -f ~/.ssh/marvin1_id_rsa
+# Generate SSH key pair (if not already generated)
+if [ ! -f ~/.ssh/id_rsa ]; then
+    ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
 fi
 
-# Copy the public key to remote machines
+# Install sshpass utility (if not already installed)
+if ! command -v sshpass >/dev/null 2>&1; then
+    echo "sshpass utility not found. Installing..."
+    sudo apt-get update
+    sudo apt-get install -y sshpass
+fi
+
+# Iterate over each machine and copy SSH public key
 for machine in "${machines[@]}"; do
-    ssh-copy-id -i ~/.ssh/marvin1_id_rsa.pub "$username@$machine"
+    # Copy SSH public key to remote machine using sshpass
+    sshpass -p "password" ssh-copy-id -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa.pub "$username@$machine"
 done
