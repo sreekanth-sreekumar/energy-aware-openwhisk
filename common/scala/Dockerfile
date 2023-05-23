@@ -30,7 +30,7 @@ RUN apt install curl -y
 RUN find / -name bash -type f
 
 # Install the JDK using apk package manager
-RUN apt install openjdk-8-jdk -y
+RUN apt-get update && apt-get install openjdk-8-jdk -y --fix-missing
 
 # Install Scala 2.13.5 We have no choice but to do this since we can't find a compatible image for both amd64 and arm/v7
 ENV SCALA_VERSION=2.12.10
