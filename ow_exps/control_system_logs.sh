@@ -8,7 +8,7 @@ machines=(
 )
 username="pi"
 
-mkdir /home/sreekanth/Projects/energy-aware-openwhisk/ow_exps/weighted_dist_logs_new/
+mkdir /home/srs262/ow_exps/weighted_dist_logs_new/
 # Loop through the machines and start the script on each one
 for ((i=0; i<${#machines[@]}; i+=2)); do
   ip="${machines[$i]}"
@@ -17,9 +17,9 @@ for ((i=0; i<${#machines[@]}; i+=2)); do
   echo "${ip}"
   source_path="${username}@${ip}:/var/tmp/wsklogs/${machine}/${machine}_logs.log"
   echo "$source_path"
-  dest_path="/home/sreekanth/Projects/energy-aware-openwhisk/ow_exps/weighted_dist_logs_new/"
+  dest_path="/home/srs262/ow_exps/weighted_dist_logs_new/"
   scp "$source_path" "$dest_path"
   echo "Copied $machine"
   done
 
-cp /var/tmp/wsklogs/controller0/controller0_logs.log /home/sreekanth/Projects/energy-aware-openwhisk/ow_exps/weighted_dist_logs_new/
+cp /var/tmp/wsklogs/controller0/controller0_logs.log /home/srs262/ow_exps/weighted_dist_logs_new/

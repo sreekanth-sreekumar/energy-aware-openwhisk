@@ -3,7 +3,7 @@ import pandas as pd
 import datetime
 import asyncio
 from time import sleep
-
+import numpy as np
 
 async def invoke_function(times, function_name):
     async def run_subprocess():
@@ -19,6 +19,13 @@ async def invoke_function(times, function_name):
             await asyncio.sleep(60 / times)
     await asyncio.gather(*tasks)
 
+func_map = {
+    0: 'test.js',
+    1: 'test.py',
+    2: 'test.rb',
+    3: 'test.rs'
+}
+
 
 async def main():
     print('Started Main')
@@ -29,7 +36,9 @@ async def main():
 
     for _, row in df.iterrows():
         function_name = row['HashFunction']
-        subprocess.run(["wsk", "action", "create", function_name, "test1.js", "--insecure"])
+        randFunc = np.random.randint(0, 4)
+        row['FuncType'] = func_map[randFunc]
+        subprocess.run(["wsk", "action", "create", function_name, func_map[randFunc], "--insecure"])
 
     start_min = 1
 
